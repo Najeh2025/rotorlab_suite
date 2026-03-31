@@ -1,6 +1,6 @@
 # 3_🔬_Simulation.py
 # Créé automatiquement dans Colab
-# pages/3_🔬_Simulation.py
+# pages_disabled/3_🔬_Simulation.py
 """Page principale du mode simulation - Orchestre les modules M1 à M6"""
 
 import streamlit as st
