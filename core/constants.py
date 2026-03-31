@@ -162,3 +162,18 @@ TUTORIALS = {
         ]
     },
 }
+
+# =============================================================================
+# MATÉRIAU PAR DÉFAUT
+# =============================================================================
+DEFAULT_MATERIAL = None
+
+def init_default_material():
+    """Initialise le matériau par défaut si ROSS est disponible"""
+    global DEFAULT_MATERIAL
+    try:
+        import ross as rs
+        DEFAULT_MATERIAL = rs.Material(name="Steel", rho=7810, E=211e9, G_s=81.2e9)
+    except Exception:
+        DEFAULT_MATERIAL = None
+    return DEFAULT_MATERIAL
