@@ -15,79 +15,9 @@ st.set_page_config(
 )
 
 # =============================================================================
-# IMPORTS DES MODULES (après la configuration)
+# VÉRIFICATION ROSS
 # =============================================================================
 
-# Core
-from core.constants import (
-    MATERIALS_DB, BEARING_PRESETS, GLOBAL_CSS, TUTORIALS, init_default_material
-)
-from core.cache_manager import cache
-from core.rotor_builder import RotorBuilder
-from core.simulation_engine import SimulationEngine
-from core.report_generator import ReportGenerator
-
-# UI
-from ui.components import info_card, badge, modal_table, progress_indicator
-from ui.plots import (
-    plot_bode_unbal, plot_campbell_with_api, plot_waterfall,
-    plot_polar_unbal, plot_camp_unbal, plot_freq_resp, plot_nyquist
-)
-
-# Modules
-from modules import (
-    m1_constructeur, m2_statique_modal, m3_campbell,
-    m4_balourd, m5_temporel_defauts, m6_rapport
-)
-
-# =============================================================================
-# INITIALISATION DE LA SESSION
-# =============================================================================
-
-def init_session_state():
-    """Initialise toutes les variables de session"""
-    
-    defaults = {
-        "user_name": "Utilisateur",
-        "badges": {},
-        "tut_done": set(),
-        "sim_count": 0,
-        "chat_history": [],
-        "current_page": "Tableau de Bord",  # Page courante
-        "sim_module": "M1",
-        "tut_active": "T1",
-        
-        # Tableaux pour M1
-        "df_shaft": pd.DataFrame([
-            {"L (m)": 0.2, "id_L (m)": 0.0, "od_L (m)": 0.05, "id_R (m)": 0.0, "od_R (m)": 0.05}
-            for _ in range(5)
-        ]),
-        "df_disk": pd.DataFrame([
-            {"nœud": 2, "Masse (kg)": 15.12, "Id (kg.m²)": 0.025, "Ip (kg.m²)": 0.047}
-        ]),
-        "df_bear": pd.DataFrame([
-            {"nœud": 0, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
-             "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
-            {"nœud": 5, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
-             "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
-        ]),
-        
-        # Images pour rapport
-        "img_rotor": None,
-        "img_campbell_plot": None,
-        
-        # Résultats
-        "df_modal": None,
-        "df_campbell": None,
-        "df_api": None,
-        "api_params": None,
-    }
-    
-    for key, default in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = default
-
-# Vérification ROSS
 try:
     import ross as rs
     ROSS_AVAILABLE = True
@@ -96,17 +26,96 @@ except ImportError:
     ROSS_AVAILABLE = False
     ROSS_VERSION = "non installé"
 
-# Initialisation
+# =============================================================================
+# CONSTANTES (simplifiées pour la correction)
+# =============================================================================
+
+MATERIALS_DB = {
+    "Acier standard (AISI 1045)": {"rho": 7810.0, "E": 211e9, "G_s": 81.2e9},
+    "Acier inoxydable (316L)": {"rho": 7990.0, "E": 193e9, "G_s": 74.0e9},
+    "Aluminium (7075-T6)": {"rho": 2810.0, "E": 72e9, "G_s": 27.0e9},
+}
+
+BEARING_PRESETS = {
+    "Roulement à billes": {"kxx": 1e7, "kyy": 1e7, "kxy": 0.0, "cxx": 500.0, "cyy": 500.0},
+    "Palier rigide": {"kxx": 1e9, "kyy": 1e9, "kxy": 0.0, "cxx": 100.0, "cyy": 100.0},
+}
+
+TUTORIALS = {
+    "T1": {
+        "title": "Part 1 — Création du Modèle",
+        "level": "🟢 Débutant",
+        "duration": "~15 min",
+        "api": ["Material", "ShaftElement", "DiskElement", "BearingElement", "Rotor"],
+        "steps": [
+            {"id": "T1_S1", "title": "Définir un matériau",
+             "theory": "Le matériau définit les propriétés physiques de l'arbre.",
+             "objective": "Créer un matériau Acier",
+             "code": "import ross as rs\nsteel = rs.Material(name='Steel', rho=7810, E=211e9, G_s=81.2e9)"},
+            {"id": "T1_S2", "title": "Créer les éléments d'arbre",
+             "theory": "L'arbre est discrétisé en éléments de poutre de Timoshenko.",
+             "objective": "Créer 5 éléments d'arbre",
+             "code": "shaft = [rs.ShaftElement(L=0.25, idl=0.0, odl=0.05, material=steel) for _ in range(6)]"},
+            {"id": "T1_S3", "title": "Ajouter un disque",
+             "theory": "Les disques sont modélisés comme des corps rigides.",
+             "objective": "Ajouter un disque au nœud central",
+             "code": "disk = rs.DiskElement.from_geometry(n=2, material=steel, width=0.07, i_d=0.05, o_d=0.25)"},
+        ]
+    },
+    "T2_1": {
+        "title": "Part 2.1 — Analyses Statiques & Modales",
+        "level": "🔵 Intermédiaire",
+        "duration": "~20 min",
+        "api": ["run_static()", "run_modal()", "run_campbell()"],
+        "steps": [
+            {"id": "T21_S1", "title": "Analyse statique",
+             "theory": "Calcule la déflexion de l'arbre sous son propre poids.",
+             "objective": "Calculer la déflexion statique",
+             "code": "static = rotor.run_static()\nstatic.plot_deflected_shape()"},
+        ]
+    }
+}
+
+GLOBAL_CSS = """
+<style>
+.stTabs [data-baseweb="tab-list"] { gap: 10px; }
+.card { background:#F0F4FF; border-left:5px solid #1F5C8B; border-radius:8px; padding:16px 20px; margin:8px 0; }
+.badge { display:inline-block; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700; margin:2px; }
+.badge-blue { background:#1F5C8B; color:#fff; }
+.mod-badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; background:#EBF4FB; color:#1F5C8B; }
+</style>
+"""
+
+# =============================================================================
+# INITIALISATION DE LA SESSION
+# =============================================================================
+
+def init_session_state():
+    """Initialise toutes les variables de session"""
+    defaults = {
+        "user_name": "Utilisateur",
+        "badges": {},
+        "tut_done": set(),
+        "current_page": "Tableau de Bord",
+        "sim_module": "M1",
+        "tut_active": "T1",
+        "df_shaft": pd.DataFrame([{"L (m)": 0.2, "od (m)": 0.05} for _ in range(5)]),
+        "df_disk": pd.DataFrame([{"nœud": 2, "Masse (kg)": 15.12, "Id": 0.025, "Ip": 0.047}]),
+        "df_bear": pd.DataFrame([{"nœud": 0, "kxx": 1e6, "kyy": 1e6, "cxx": 0, "cyy": 0}]),
+        "rotor": None,
+    }
+    for key, default in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+
 init_session_state()
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
-init_default_material()
 
 # =============================================================================
 # SIDEBAR
 # =============================================================================
 
 with st.sidebar:
-    # Logo et titre
     st.markdown("""
     <div style='text-align:center; margin-bottom:20px;'>
         <div style='font-size:2.5em;'>⚙️</div>
@@ -114,17 +123,15 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Profil utilisateur
     st.session_state["user_name"] = st.text_input(
         "👤 Votre nom",
         st.session_state.get("user_name", "Utilisateur")
     )
     
     st.markdown("---")
-    
-    # Navigation UNIQUE (sans duplication)
     st.markdown("### 🗺️ Navigation")
     
+    # Navigation UNIQUE
     nav_items = [
         ("🏠 Tableau de Bord", "dashboard"),
         ("🎓 Mode Pédagogique", "tutorial"),
@@ -135,76 +142,42 @@ with st.sidebar:
     ]
     
     for label, key in nav_items:
-        # Style du bouton selon la page active
         is_active = st.session_state.get("current_page") == label
         btn_type = "primary" if is_active else "secondary"
-        
         if st.button(label, key=f"nav_{key}", use_container_width=True, type=btn_type):
             st.session_state["current_page"] = label
             st.rerun()
     
     st.markdown("---")
     
-    # Badges de progression
-    badges = st.session_state.get("badges", {})
-    if badges:
-        st.markdown("### 🏅 Progression")
-        for tid, btype in badges.items():
-            icon = {"gold": "🥇", "silver": "🥈", "bronze": "🥉"}.get(btype, "🏅")
-            st.markdown(f"{icon} **{tid}**")
-        st.markdown("---")
-    
     # Statut ROSS
     if ROSS_AVAILABLE:
         st.success(f"✅ ROSS {ROSS_VERSION}")
     else:
         st.error("❌ ROSS non installé")
-        st.code("pip install ross-rotordynamics", language="bash")
     
     # Rotor actif
-    rotor = cache.get("rotor", namespace="simulation")
-    if rotor:
+    if st.session_state.get("rotor"):
+        rotor = st.session_state["rotor"]
         st.markdown("---")
         st.markdown("### 🔧 Rotor actif")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Nœuds", len(rotor.nodes))
-        with col2:
-            st.metric("Masse", f"{rotor.m:.1f} kg")
+        st.metric("Nœuds", len(rotor.nodes))
+        st.metric("Masse", f"{rotor.m:.1f} kg")
     
     st.markdown("---")
     st.caption("RotorLab Suite 1.0 • Propulsé par ROSS")
 
 # =============================================================================
-# ROUTAGE DES PAGES
+# CONTENU PRINCIPAL
 # =============================================================================
 
-# Récupération de la page courante
 current_page = st.session_state.get("current_page", "Tableau de Bord")
 
-# Affichage du contenu principal
+# -----------------------------------------------------------------------------
+# PAGE : TABLEAU DE BORD
+# -----------------------------------------------------------------------------
 if current_page == "🏠 Tableau de Bord":
-    render_dashboard()
-elif current_page == "🎓 Mode Pédagogique":
-    render_tutorial_mode()
-elif current_page == "🔬 Mode Simulation":
-    render_simulation_mode()
-elif current_page == "📚 Bibliothèque":
-    render_library()
-elif current_page == "✨ SmartRotor Copilot":
-    render_gemini_assistant()
-elif current_page == "ℹ️ À propos":
-    render_about_page()
-
-# =============================================================================
-# FONCTIONS DE RENDU (à déplacer dans des fichiers séparés normalement)
-# =============================================================================
-
-def render_dashboard():
-    """Page d'accueil / Tableau de bord"""
-    
     user_name = st.session_state.get("user_name", "Utilisateur")
-    from datetime import datetime
     hour = datetime.now().hour
     
     if hour < 12:
@@ -225,7 +198,6 @@ def render_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # Message de bienvenue
     st.markdown(f"""
     <div style='background:linear-gradient(135deg, #1F5C8B08, #FFFFFF); 
                 border-radius:12px; padding:12px 20px; margin-bottom:25px;
@@ -237,9 +209,8 @@ def render_dashboard():
     </div>
     """, unsafe_allow_html=True)
     
-    # Accès rapide aux modules
+    # Modules
     st.markdown("### 🚀 Accès Rapide aux Modules")
-    
     modules = [
         ("M1", "🏗️ Constructeur", "Géométrie, Matériaux, Paliers"),
         ("M2", "📊 Statique & Modal", "Déflexion, Fréquences propres"),
@@ -266,35 +237,26 @@ def render_dashboard():
             </div>
             """, unsafe_allow_html=True)
             
-            if st.button(f"⚙️ Lancer {m_id}", key=f"btn_dash_{m_id}", 
-                         use_container_width=True):
+            if st.button(f"⚙️ Lancer {m_id}", key=f"btn_dash_{m_id}", use_container_width=True):
                 st.session_state["current_page"] = "🔬 Mode Simulation"
                 st.session_state["sim_module"] = m_id
                 st.rerun()
     
     st.markdown("---")
     
-    # Tutoriels rapides
+    # Tutoriels
     st.markdown("### 🎓 Tutoriels Rapides")
-    
     tut_done = st.session_state.get("tut_done", set())
-    level_colors = {
-        "🟢 Débutant": "#22863A",
-        "🔵 Intermédiaire": "#1F5C8B",
-        "🔴 Avancé": "#C55A11"
-    }
-    
     tcols = st.columns(4)
+    
     for i, (tid, tdata) in enumerate(TUTORIALS.items()):
         done = tid in tut_done
-        color = level_colors.get(tdata['level'], "#1F5C8B")
-        
         with tcols[i]:
             st.markdown(f"""
             <div style='background:{"#F0FFF4" if done else "#FFFFFF"}; 
-                        border:1px solid {color}30; border-radius:12px; padding:12px;'>
+                        border:1px solid #E8E8E8; border-radius:12px; padding:12px;'>
                 <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
-                    <span style='background:{color}; color:white; padding:2px 8px; 
+                    <span style='background:#1F5C8B; color:white; padding:2px 8px; 
                                  border-radius:20px; font-size:10px;'>
                         {tdata['level']}
                     </span>
@@ -316,65 +278,28 @@ def render_dashboard():
     st.markdown("### 🏭 Cas d'Étude Industriel")
     
     if ROSS_AVAILABLE and st.button("🔌 Charger Compresseur Centrifuge", use_container_width=True, type="primary"):
-        with st.spinner("Chargement du modèle industriel..."):
+        with st.spinner("Chargement..."):
             try:
-                import ross as rs
                 comp = rs.compressor_example()
-                cache.set("rotor", comp, namespace="simulation")
-                
-                # Synchronisation des tableaux
-                shaft_data = []
-                for el in comp.shaft_elements:
-                    shaft_data.append({
-                        "L (m)": el.L,
-                        "id_L (m)": el.idl,
-                        "od_L (m)": el.odl,
-                        "id_R (m)": el.idr,
-                        "od_R (m)": el.odr
-                    })
-                st.session_state.df_shaft = pd.DataFrame(shaft_data)
-                
-                disk_data = []
-                for disk in comp.disk_elements:
-                    disk_data.append({
-                        "nœud": disk.n,
-                        "Masse (kg)": disk.m,
-                        "Id (kg.m²)": disk.Id,
-                        "Ip (kg.m²)": disk.Ip
-                    })
-                st.session_state.df_disk = pd.DataFrame(disk_data)
-                
-                bearing_data = []
-                for brg in comp.bearing_elements:
-                    bearing_data.append({
-                        "nœud": brg.n,
-                        "Type": "Palier",
-                        "kxx": brg.kxx[0] if hasattr(brg.kxx, '__iter__') else brg.kxx,
-                        "kyy": brg.kyy[0] if hasattr(brg.kyy, '__iter__') else brg.kyy,
-                        "kxy": brg.kxy[0] if hasattr(brg.kxy, '__iter__') else brg.kxy,
-                        "cxx": brg.cxx[0] if hasattr(brg.cxx, '__iter__') else brg.cxx,
-                        "cyy": brg.cyy[0] if hasattr(brg.cyy, '__iter__') else brg.cyy,
-                        "m (kg)": 0.0
-                    })
-                st.session_state.df_bear = pd.DataFrame(bearing_data)
-                
+                st.session_state["rotor"] = comp
                 st.success("✅ Compresseur chargé avec succès !")
                 st.balloons()
             except Exception as e:
                 st.error(f"Erreur : {e}")
 
-def render_tutorial_mode():
-    """Mode Pédagogique"""
+# -----------------------------------------------------------------------------
+# PAGE : MODE PÉDAGOGIQUE
+# -----------------------------------------------------------------------------
+elif current_page == "🎓 Mode Pédagogique":
     st.title("🎓 Mode Pédagogique — Tutoriels ROSS Officiels")
     
     tut_id = st.session_state.get("tut_active", "T1")
-    
     if tut_id not in TUTORIALS:
         tut_id = "T1"
     
     tut = TUTORIALS[tut_id]
     
-    # Sélecteur de tutoriel
+    # Sélecteur
     tut_keys = list(TUTORIALS.keys())
     selected = st.selectbox(
         "Sélectionnez un tutoriel :",
@@ -393,24 +318,21 @@ def render_tutorial_mode():
     <div class='card'>
         <h2 style='color:#1F5C8B; margin:0'>{tut['title']}</h2>
         <p>{tut['level']} &nbsp;|&nbsp; ⏱ {tut['duration']}</p>
-        <p><b>API ROSS utilisée :</b> {api_badges}</p>
+        <p><b>API ROSS :</b> {api_badges}</p>
     </div>
     """, unsafe_allow_html=True)
     
     # Navigation des étapes
     steps = tut["steps"]
-    n_steps = len(steps)
     step_key = f"tut_step_{tut_id}"
     current_step = st.session_state.get(step_key, 0)
     
-    # Barre de progression
-    st.progress((current_step + 1) / n_steps)
+    st.progress((current_step + 1) / len(steps))
     
-    # Sélection d'étape dans la sidebar (ou en haut)
     step_idx = st.radio(
         "Étapes :",
-        range(n_steps),
-        index=min(current_step, n_steps - 1),
+        range(len(steps)),
+        index=min(current_step, len(steps) - 1),
         format_func=lambda i: f"{'✅' if i < current_step else '▶️' if i == current_step else '⬜'} Étape {i+1}: {steps[i]['title']}",
         horizontal=True
     )
@@ -418,64 +340,41 @@ def render_tutorial_mode():
     step = steps[step_idx]
     st.markdown(f"## Étape {step_idx+1} — {step['title']}")
     
-    # Onglets
-    tab_th, tab_sim, tab_code = st.tabs(["📖 Théorie", "🔬 Simulation", "💻 Code"])
+    tab_th, tab_code = st.tabs(["📖 Théorie", "💻 Code"])
     
     with tab_th:
         st.info(step["theory"])
         st.markdown(f"**🎯 Objectif :** {step['objective']}")
     
     with tab_code:
-        st.markdown("**Code de référence ROSS :**")
         st.code(step["code"], language="python")
-        st.download_button(
-            "⬇️ Télécharger ce snippet",
-            data=step["code"].encode(),
-            file_name=f"ross_{step['id']}.py",
-            mime="text/plain"
-        )
-    
-    with tab_sim:
-        st.info("💡 Simulation interactive disponible dans la version complète.")
-        st.markdown(f"Exécutez le code ci-dessus dans votre environnement Python pour voir les résultats.")
     
     # Navigation
     col_prev, col_next = st.columns(2)
     with col_prev:
-        if step_idx > 0:
-            if st.button("⬅️ Précédent", use_container_width=True):
-                st.session_state[step_key] = step_idx - 1
-                st.rerun()
+        if step_idx > 0 and st.button("⬅️ Précédent", use_container_width=True):
+            st.session_state[step_key] = step_idx - 1
+            st.rerun()
     with col_next:
-        if step_idx < n_steps - 1:
-            if st.button("Suivant ➡️", type="primary", use_container_width=True):
-                st.session_state[step_key] = step_idx + 1
-                st.rerun()
+        if step_idx < len(steps) - 1 and st.button("Suivant ➡️", type="primary", use_container_width=True):
+            st.session_state[step_key] = step_idx + 1
+            st.rerun()
     
-    # Validation
-    if step_idx == n_steps - 1:
+    if step_idx == len(steps) - 1:
         if st.button("🏆 Terminer ce tutoriel", type="primary", use_container_width=True):
             tut_done = st.session_state.get("tut_done", set())
             tut_done.add(tut_id)
             st.session_state["tut_done"] = tut_done
-            badges = st.session_state.get("badges", {})
-            badges[tut_id] = "gold"
-            st.session_state["badges"] = badges
             st.balloons()
-            st.success(f"🥇 Tutoriel {tut['title'][:30]} complété !")
+            st.success(f"✅ Tutoriel {tut['title'][:30]} complété !")
 
-def render_simulation_mode():
-    """Mode Simulation"""
+# -----------------------------------------------------------------------------
+# PAGE : MODE SIMULATION
+# -----------------------------------------------------------------------------
+elif current_page == "🔬 Mode Simulation":
     st.title("🔬 Mode Simulation")
     
-    module_options = [
-        "M1 🏗️ Constructeur",
-        "M2 📊 Statique & Modal",
-        "M3 📈 Campbell & Stabilité",
-        "M4 🌀 Balourd",
-        "M5 ⏱️ Temporel",
-        "M6 📄 Rapport PDF"
-    ]
+    module_options = ["M1 🏗️ Constructeur", "M2 📊 Statique & Modal", "M3 📈 Campbell", "M4 🌀 Balourd", "M5 ⏱️ Temporel", "M6 📄 Rapport"]
     
     sim_module = st.session_state.get("sim_module", "M1")
     default_idx = 0
@@ -484,88 +383,110 @@ def render_simulation_mode():
             default_idx = i
             break
     
-    selected_mod = st.radio(
-        "Module :",
-        module_options,
-        index=default_idx,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    
-    st.session_state["sim_module"] = selected_mod[:2]
+    selected = st.radio("Module :", module_options, index=default_idx, horizontal=True, label_visibility="collapsed")
+    st.session_state["sim_module"] = selected[:2]
     st.markdown("---")
     
-    # Routage vers les modules
-    if "M1" in selected_mod:
-        m1_constructeur.render()
-    elif "M2" in selected_mod:
-        m2_statique_modal.render()
-    elif "M3" in selected_mod:
-        m3_campbell.render()
-    elif "M4" in selected_mod:
-        m4_balourd.render()
-    elif "M5" in selected_mod:
-        m5_temporel_defauts.render()
-    elif "M6" in selected_mod:
-        m6_rapport.render()
+    # M1 - Constructeur
+    if "M1" in selected:
+        st.subheader("🏗️ M1 — Constructeur de Rotor")
+        
+        tab_mat, tab_arbre, tab_disques, tab_paliers = st.tabs(["Matériau", "Arbre", "Disques", "Paliers"])
+        
+        with tab_mat:
+            mat_name = st.selectbox("Matériau :", list(MATERIALS_DB.keys()))
+            props = MATERIALS_DB[mat_name]
+            col1, col2, col3 = st.columns(3)
+            col1.metric("ρ (kg/m³)", f"{props['rho']:.0f}")
+            col2.metric("E (GPa)", f"{props['E']/1e9:.1f}")
+            col3.metric("G_s (GPa)", f"{props['G_s']/1e9:.1f}")
+        
+        with tab_arbre:
+            st.session_state.df_shaft = st.data_editor(st.session_state.df_shaft, num_rows="dynamic")
+        
+        with tab_disques:
+            st.session_state.df_disk = st.data_editor(st.session_state.df_disk, num_rows="dynamic")
+        
+        with tab_paliers:
+            st.session_state.df_bear = st.data_editor(st.session_state.df_bear, num_rows="dynamic")
+        
+        if st.button("🚀 Assembler le rotor", type="primary"):
+            if ROSS_AVAILABLE:
+                try:
+                    mat = rs.Material(name=mat_name, rho=props["rho"], E=props["E"], G_s=props["G_s"])
+                    shaft = [rs.ShaftElement(L=row["L (m)"], idl=0, odl=row["od (m)"], material=mat) 
+                             for _, row in st.session_state.df_shaft.iterrows()]
+                    rotor = rs.Rotor(shaft, [], [])
+                    st.session_state["rotor"] = rotor
+                    st.success(f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | Masse : {rotor.m:.2f} kg")
+                except Exception as e:
+                    st.error(f"Erreur : {e}")
+            else:
+                st.error("ROSS non disponible")
+        
+        if st.session_state.get("rotor"):
+            st.success("✅ Rotor actif dans la mémoire")
+    
+    else:
+        st.info(f"Module {selected} - En développement")
 
-def render_library():
-    """Bibliothèque"""
-    st.title("📚 Bibliothèque — Documentation ROSS")
+# -----------------------------------------------------------------------------
+# PAGE : BIBLIOTHÈQUE
+# -----------------------------------------------------------------------------
+elif current_page == "📚 Bibliothèque":
+    st.title("📚 Bibliothèque")
     
-    tab_ex, tab_theory, tab_api = st.tabs(["🏭 Exemples", "📐 Théorie", "🛠️ API ROSS"])
+    tab1, tab2 = st.tabs(["Documentation", "Exemples"])
     
-    with tab_ex:
-        st.markdown("### Exemples officiels")
+    with tab1:
+        st.markdown("""
+        ### Documentation ROSS
+        
+        - **Site officiel :** [ross.readthedocs.io](https://ross.readthedocs.io/)
+        - **GitHub :** [github.com/ross-rotordynamics/ross](https://github.com/ross-rotordynamics/ross)
+        - **Paper :** Timbó et al. (2020) JOSS 5(48):2120
+        """)
+    
+    with tab2:
         if ROSS_AVAILABLE and st.button("Charger compresseur centrifuge"):
             try:
-                import ross as rs
                 comp = rs.compressor_example()
-                cache.set("rotor", comp, namespace="simulation")
+                st.session_state["rotor"] = comp
                 st.success("Compresseur chargé !")
             except Exception as e:
                 st.error(f"Erreur : {e}")
-    
-    with tab_theory:
-        st.markdown("""
-        ## Fondements Théoriques
-        
-        ### Équation du mouvement
-        """)
-        st.latex(r"[M]\{\ddot{q}\} + ([C]+[G])\{\dot{q}\} + [K]\{q\} = \{F(t)\}")
-        
-    with tab_api:
-        st.markdown("""
-        ## API ROSS
-        
-        | Méthode | Description |
-        |---------|-------------|
-        | `run_modal()` | Analyse modale |
-        | `run_campbell()` | Diagramme de Campbell |
-        | `run_unbalance_response()` | Réponse au balourd |
-        """)
 
-def render_gemini_assistant():
-    """Assistant IA"""
+# -----------------------------------------------------------------------------
+# PAGE : SMARTROTOR COPILOT
+# -----------------------------------------------------------------------------
+elif current_page == "✨ SmartRotor Copilot":
     st.title("✨ SmartRotor Copilot")
-    st.info("Assistant IA spécialisé en dynamique des rotors. (Configuration API requise)")
+    st.info("Assistant IA spécialisé en dynamique des rotors.")
+    st.markdown("""
+    ### Questions possibles :
+    - Comment créer un rotor avec ROSS ?
+    - Explique-moi le diagramme de Campbell
+    - Comment calculer les vitesses critiques ?
+    """)
 
-def render_about_page():
-    """À propos"""
+# -----------------------------------------------------------------------------
+# PAGE : À PROPOS
+# -----------------------------------------------------------------------------
+elif current_page == "ℹ️ À propos":
     st.title("ℹ️ À propos")
     st.markdown("""
     **RotorLab Suite 1.0** est une plateforme avancée de modélisation et de simulation 
     dédiée à la dynamique des rotors.
     
-    Développée par **Pr. Najeh Ben Guedria**.
+    ### Créateur
+    **Pr. Najeh Ben Guedria**
     
-    Basée sur la bibliothèque open-source **ROSS** (Rotordynamic Open-Source Software).
+    ### Technologies
+    - **Framework :** Streamlit
+    - **Moteur de calcul :** ROSS (Rotordynamic Open-Source Software)
+    - **Visualisation :** Plotly
+    - **Rapports :** ReportLab
+    
+    ### Version
+    v1.0 - Mars 2026
     """)
-
-# =============================================================================
-# MAIN
-# =============================================================================
-
-if __name__ == "__main__":
-    # Le routage est déjà fait plus haut
-    pass
