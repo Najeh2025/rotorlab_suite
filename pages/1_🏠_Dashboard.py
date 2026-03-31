@@ -1,4 +1,4 @@
-# pages/1_🏠_Dashboard.py
+# pages_disabled/1_🏠_Dashboard.py
 """Page d'accueil / Tableau de bord améliorée"""
 
 import streamlit as st
