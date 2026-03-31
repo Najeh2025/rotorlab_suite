@@ -1,0 +1,2 @@
+# 6_ℹ️_Apropos.py
+# Créé automatiquement dans Colab
