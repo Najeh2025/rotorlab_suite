@@ -1,6 +1,6 @@
 # 2_🎓_Pedagogique.py
 # Créé automatiquement dans Colab
-# pages/2_🎓_Pedagogique.py
+# pages_disabled/2_🎓_Pedagogique.py
 """Mode Pédagogique - Tutoriels interactifs"""
 
 import streamlit as st
