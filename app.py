@@ -646,13 +646,30 @@ elif current_page == "🔬 Mode Simulation":
                                 st.error("❌ Aucun élément d'arbre valide")
                             else:
                                 # Construction des disques
+                                # Construction des disques (version robuste)
                                 disks = []
                                 for _, row in st.session_state.df_disk.iterrows():
                                     try:
                                         n = int(row["nœud"])
                                         m = float(row["Masse (kg)"])
-                                        Id = float(row["Id (kg.m²)"])
-                                        Ip = float(row["Ip (kg.m²)"])
+                                        
+                                        # Lecture robuste de Id et Ip (gère les variations de casse)
+                                        Id = 0.0
+                                        Ip = 0.0
+                                        
+                                        # Chercher la colonne Id (insensible à la casse)
+                                        for col in row.index:
+                                            if col.lower() in ["id", "id (kg.m²)", "id (kg.m2)", "id (kgm²)"]:
+                                                Id = float(row[col])
+                                            if col.lower() in ["ip", "ip (kg.m²)", "ip (kg.m2)", "ip (kgm²)"]:
+                                                Ip = float(row[col])
+                                        
+                                        # Fallback sur les noms exacts si non trouvés
+                                        if Id == 0.0 and "Id (kg.m²)" in row:
+                                            Id = float(row["Id (kg.m²)"])
+                                        if Ip == 0.0 and "Ip (kg.m²)" in row:
+                                            Ip = float(row["Ip (kg.m²)"])
+                                        
                                         disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
                                     except Exception as e:
                                         st.warning(f"⚠️ Disque ignoré : {e}")
