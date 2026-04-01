@@ -739,7 +739,8 @@ elif current_page == "🔬 Mode Simulation":
             except Exception as e:
                 st.info(f"ℹ️ Visualisation 3D non disponible : {e}")
             
-            # Export Python (version corrigée)
+
+            # Export Python (version entièrement corrigée)
             with st.expander("📜 Exporter le code Python"):
                 # Récupération des données
                 shaft_data = st.session_state.df_shaft.to_dict('records')
@@ -777,14 +778,14 @@ elif current_page == "🔬 Mode Simulation":
                     idr = r.get("id_R (m)", idl)
                     odr = r.get("od_R (m)", odl)
                     
-                    code_lines.append(f"shaft.append(rs.ShaftElement(")
+                    code_lines.append("shaft.append(rs.ShaftElement(")
                     code_lines.append(f"    L={L},")
                     code_lines.append(f"    idl={idl},")
                     code_lines.append(f"    odl={odl},")
                     code_lines.append(f"    idr={idr},")
                     code_lines.append(f"    odr={odr},")
-                    code_lines.append(f"    material=mat")
-                    code_lines.append(f"))")
+                    code_lines.append("    material=mat")
+                    code_lines.append("))")
                 code_lines.append("")
                 
                 code_lines.append("# =============================================================")
@@ -809,12 +810,12 @@ elif current_page == "🔬 Mode Simulation":
                     elif "Ip" in r:
                         Ip = r["Ip"]
                     
-                    code_lines.append(f"disks.append(rs.DiskElement(")
+                    code_lines.append("disks.append(rs.DiskElement(")
                     code_lines.append(f"    n={n},")
                     code_lines.append(f"    m={m},")
                     code_lines.append(f"    Id={Id},")
                     code_lines.append(f"    Ip={Ip}")
-                    code_lines.append(f"))")
+                    code_lines.append("))")
                 code_lines.append("")
                 
                 code_lines.append("# =============================================================")
@@ -829,7 +830,7 @@ elif current_page == "🔬 Mode Simulation":
                     cxx = r.get("cxx", 0)
                     cyy = r.get("cyy", 0)
                     
-                    code_lines.append(f"bearings.append(rs.BearingElement(")
+                    code_lines.append("bearings.append(rs.BearingElement(")
                     code_lines.append(f"    n={n},")
                     code_lines.append(f"    kxx={kxx},")
                     code_lines.append(f"    kyy={kyy},")
@@ -837,7 +838,7 @@ elif current_page == "🔬 Mode Simulation":
                     code_lines.append(f"    kyx=-{kxy},")
                     code_lines.append(f"    cxx={cxx},")
                     code_lines.append(f"    cyy={cyy}")
-                    code_lines.append(f"))")
+                    code_lines.append("))")
                 code_lines.append("")
                 
                 code_lines.append("# =============================================================")
