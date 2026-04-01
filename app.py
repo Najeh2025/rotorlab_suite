@@ -642,7 +642,7 @@ elif current_page == "🔬 Mode Simulation":
                             
                             if not shaft:
                                 st.error("❌ Aucun élément d'arbre valide")
-                                return
+                            return
                             
                             # Construction des disques
                             disks = []
