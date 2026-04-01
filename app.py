@@ -739,10 +739,130 @@ elif current_page == "🔬 Mode Simulation":
             except Exception as e:
                 st.info(f"ℹ️ Visualisation 3D non disponible : {e}")
             
-            # Export Python
+            # Export Python (version corrigée)
             with st.expander("📜 Exporter le code Python"):
+                # Récupération des données
+                shaft_data = st.session_state.df_shaft.to_dict('records')
+                disk_data = st.session_state.df_disk.to_dict('records')
+                bear_data = [r for r in st.session_state.df_bear.to_dict('records') if r.get('Type', 'Palier') != 'Masse']
+                
                 mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
                 props = MATERIALS_DB.get(mat_name, MATERIALS_DB["Acier standard (AISI 1045)"])
+                
+                # Construction du code Python
+                code_lines = []
+                code_lines.append("# Script ROSS généré par RotorLab Suite")
+                code_lines.append("import ross as rs")
+                code_lines.append("import numpy as np")
+                code_lines.append("")
+                code_lines.append("# =============================================================")
+                code_lines.append("# MATÉRIAU")
+                code_lines.append("# =============================================================")
+                code_lines.append(f"mat = rs.Material(")
+                code_lines.append(f"    name='{mat_name}',")
+                code_lines.append(f"    rho={props['rho']},")
+                code_lines.append(f"    E={props['E']:.2e},")
+                code_lines.append(f"    G_s={props['G_s']:.2e}")
+                code_lines.append(f")")
+                code_lines.append("")
+                
+                code_lines.append("# =============================================================")
+                code_lines.append("# ARBRE")
+                code_lines.append("# =============================================================")
+                code_lines.append("shaft = []")
+                for r in shaft_data:
+                    L = r.get("L (m)", 0.2)
+                    idl = r.get("id_L (m)", r.get("id (m)", 0.0))
+                    odl = r.get("od_L (m)", r.get("od (m)", 0.05))
+                    idr = r.get("id_R (m)", idl)
+                    odr = r.get("od_R (m)", odl)
+                    
+                    code_lines.append(f"shaft.append(rs.ShaftElement(")
+                    code_lines.append(f"    L={L},")
+                    code_lines.append(f"    idl={idl},")
+                    code_lines.append(f"    odl={odl},")
+                    code_lines.append(f"    idr={idr},")
+                    code_lines.append(f"    odr={odr},")
+                    code_lines.append(f"    material=mat")
+                    code_lines.append(f"))")
+                code_lines.append("")
+                
+                code_lines.append("# =============================================================")
+                code_lines.append("# DISQUES")
+                code_lines.append("# =============================================================")
+                code_lines.append("disks = []")
+                for r in disk_data:
+                    n = r.get("nœud", 0)
+                    m = r.get("Masse (kg)", 0)
+                    
+                    # Lecture robuste de Id
+                    Id = 0.0
+                    if "Id (kg.m²)" in r:
+                        Id = r["Id (kg.m²)"]
+                    elif "Id" in r:
+                        Id = r["Id"]
+                    
+                    # Lecture robuste de Ip
+                    Ip = 0.0
+                    if "Ip (kg.m²)" in r:
+                        Ip = r["Ip (kg.m²)"]
+                    elif "Ip" in r:
+                        Ip = r["Ip"]
+                    
+                    code_lines.append(f"disks.append(rs.DiskElement(")
+                    code_lines.append(f"    n={n},")
+                    code_lines.append(f"    m={m},")
+                    code_lines.append(f"    Id={Id},")
+                    code_lines.append(f"    Ip={Ip}")
+                    code_lines.append(f"))")
+                code_lines.append("")
+                
+                code_lines.append("# =============================================================")
+                code_lines.append("# PALIERS")
+                code_lines.append("# =============================================================")
+                code_lines.append("bearings = []")
+                for r in bear_data:
+                    n = r.get("nœud", 0)
+                    kxx = r.get("kxx", 0)
+                    kyy = r.get("kyy", 0)
+                    kxy = r.get("kxy", 0)
+                    cxx = r.get("cxx", 0)
+                    cyy = r.get("cyy", 0)
+                    
+                    code_lines.append(f"bearings.append(rs.BearingElement(")
+                    code_lines.append(f"    n={n},")
+                    code_lines.append(f"    kxx={kxx},")
+                    code_lines.append(f"    kyy={kyy},")
+                    code_lines.append(f"    kxy={kxy},")
+                    code_lines.append(f"    kyx=-{kxy},")
+                    code_lines.append(f"    cxx={cxx},")
+                    code_lines.append(f"    cyy={cyy}")
+                    code_lines.append(f"))")
+                code_lines.append("")
+                
+                code_lines.append("# =============================================================")
+                code_lines.append("# ASSEMBLAGE")
+                code_lines.append("# =============================================================")
+                code_lines.append("rotor = rs.Rotor(shaft, disks, bearings)")
+                code_lines.append("print(f'Masse : {rotor.m:.2f} kg')")
+                code_lines.append("print(f'Nœuds : {rotor.nodes}')")
+                code_lines.append("")
+                code_lines.append("# =============================================================")
+                code_lines.append("# VISUALISATION")
+                code_lines.append("# =============================================================")
+                code_lines.append("# rotor.plot_rotor()  # Décommentez pour afficher")
+                
+                # Affichage du code
+                st.code("\n".join(code_lines), language="python")
+                
+                # Bouton de téléchargement
+                st.download_button(
+                    label="⬇️ Télécharger le script Python",
+                    data="\n".join(code_lines).encode(),
+                    file_name="rotor_script.py",
+                    mime="text/plain",
+                    use_container_width=True
+                )
                 
                 st.code(f"""
     # Script ROSS généré par RotorLab Suite
