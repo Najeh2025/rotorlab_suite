@@ -388,47 +388,378 @@ elif current_page == "🔬 Mode Simulation":
     st.markdown("---")
     
     # M1 - Constructeur
+    # M1 - Constructeur de Rotor (version complète)
     if "M1" in selected:
         st.subheader("🏗️ M1 — Constructeur de Rotor")
+        st.caption("Bibliothèque de matériaux · Validation temps réel · Export JSON/Python")
         
-        tab_mat, tab_arbre, tab_disques, tab_paliers = st.tabs(["Matériau", "Arbre", "Disques", "Paliers"])
+        # =========================================================
+        # INITIALISATION DES TABLEAUX
+        # =========================================================
+        if "df_shaft" not in st.session_state:
+            st.session_state.df_shaft = pd.DataFrame([
+                {"L (m)": 0.2, "id_L (m)": 0.0, "od_L (m)": 0.05, "id_R (m)": 0.0, "od_R (m)": 0.05}
+                for _ in range(5)
+            ])
         
+        if "df_disk" not in st.session_state:
+            st.session_state.df_disk = pd.DataFrame([
+                {"nœud": 2, "Masse (kg)": 15.12, "Id (kg.m²)": 0.025, "Ip (kg.m²)": 0.047}
+            ])
+        
+        if "df_bear" not in st.session_state:
+            st.session_state.df_bear = pd.DataFrame([
+                {"nœud": 0, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
+                 "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
+                {"nœud": 5, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
+                 "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
+            ])
+        
+        # =========================================================
+        # BARRE D'OUTILS : NOUVEAU / CHARGER / ENREGISTRER
+        # =========================================================
+        with st.expander("📁 Gestion des fichiers du Rotor", expanded=True):
+            col_new, col_load, col_save = st.columns(3)
+            
+            with col_new:
+                st.markdown("**Nouveau / Réinitialiser**")
+                if st.button("📄 Initialiser les tableaux", use_container_width=True):
+                    st.session_state.df_shaft = pd.DataFrame([
+                        {"L (m)": 0.2, "id_L (m)": 0.0, "od_L (m)": 0.05, "id_R (m)": 0.0, "od_R (m)": 0.05}
+                        for _ in range(5)
+                    ])
+                    st.session_state.df_disk = pd.DataFrame([
+                        {"nœud": 2, "Masse (kg)": 15.12, "Id (kg.m²)": 0.025, "Ip (kg.m²)": 0.047}
+                    ])
+                    st.session_state.df_bear = pd.DataFrame([
+                        {"nœud": 0, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
+                         "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
+                        {"nœud": 5, "Type": "Palier", "kxx": 1e6, "kyy": 1e6, "kxy": 0.0,
+                         "cxx": 0.0, "cyy": 0.0, "m (kg)": 0.0},
+                    ])
+                    st.success("✅ Tableaux réinitialisés")
+                    st.rerun()
+            
+            with col_load:
+                st.markdown("**Charger un rotor (.json)**")
+                uploaded_file = st.file_uploader("Charger", type=["json"], label_visibility="collapsed")
+                if uploaded_file is not None:
+                    try:
+                        data = json.load(uploaded_file)
+                        if "shaft" in data:
+                            st.session_state.df_shaft = pd.DataFrame(data["shaft"])
+                        if "disks" in data:
+                            st.session_state.df_disk = pd.DataFrame(data["disks"])
+                        if "bearings" in data:
+                            st.session_state.df_bear = pd.DataFrame(data["bearings"])
+                        st.success("✅ Données chargées !")
+                    except Exception as e:
+                        st.error(f"Erreur de lecture : {e}")
+            
+            with col_save:
+                st.markdown("**Sauvegarder le rotor**")
+                current_data = {
+                    "shaft": st.session_state.df_shaft.to_dict(orient="records"),
+                    "disks": st.session_state.df_disk.to_dict(orient="records"),
+                    "bearings": st.session_state.df_bear.to_dict(orient="records")
+                }
+                json_str = json.dumps(current_data, indent=4, default=str)
+                st.download_button(
+                    label="💾 Enregistrer les données",
+                    data=json_str,
+                    file_name="donnees_rotor.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+        
+        st.markdown("---")
+        
+        # =========================================================
+        # ONGLETS PRINCIPAUX
+        # =========================================================
+        tab_mat, tab_arbre, tab_disques, tab_paliers = st.tabs([
+            "🧱 1. Matériau", "📏 2. Arbre", "💿 3. Disques", "⚙️ 4. Paliers"
+        ])
+        
+        # --- ONGLET 1 : MATÉRIAU ---
         with tab_mat:
-            mat_name = st.selectbox("Matériau :", list(MATERIALS_DB.keys()))
+            mat_name = st.selectbox("Matériau :", list(MATERIALS_DB.keys()), key="m1_mat")
             props = MATERIALS_DB[mat_name]
-            col1, col2, col3 = st.columns(3)
-            col1.metric("ρ (kg/m³)", f"{props['rho']:.0f}")
-            col2.metric("E (GPa)", f"{props['E']/1e9:.1f}")
-            col3.metric("G_s (GPa)", f"{props['G_s']/1e9:.1f}")
-        
-        with tab_arbre:
-            st.session_state.df_shaft = st.data_editor(st.session_state.df_shaft, num_rows="dynamic")
-        
-        with tab_disques:
-            st.session_state.df_disk = st.data_editor(st.session_state.df_disk, num_rows="dynamic")
-        
-        with tab_paliers:
-            st.session_state.df_bear = st.data_editor(st.session_state.df_bear, num_rows="dynamic")
-        
-        if st.button("🚀 Assembler le rotor", type="primary"):
-            if ROSS_AVAILABLE:
-                try:
-                    mat = rs.Material(name=mat_name, rho=props["rho"], E=props["E"], G_s=props["G_s"])
-                    shaft = [rs.ShaftElement(L=row["L (m)"], idl=0, odl=row["od (m)"], material=mat) 
-                             for _, row in st.session_state.df_shaft.iterrows()]
-                    rotor = rs.Rotor(shaft, [], [])
-                    st.session_state["rotor"] = rotor
-                    st.success(f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | Masse : {rotor.m:.2f} kg")
-                except Exception as e:
-                    st.error(f"Erreur : {e}")
+            
+            if mat_name == "Personnalisé":
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    props["rho"] = st.number_input("ρ (kg/m³)", 500.0, 20000.0, float(props["rho"]))
+                with col2:
+                    props["E"] = st.number_input("E (GPa)", 10.0, 500.0, float(props["E"]) / 1e9) * 1e9
+                with col3:
+                    props["G_s"] = st.number_input("G_s (GPa)", 5.0, 200.0, float(props["G_s"]) / 1e9) * 1e9
             else:
-                st.error("ROSS non disponible")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("ρ (kg/m³)", f"{props['rho']:.0f}")
+                col2.metric("E (GPa)", f"{props['E']/1e9:.1f}")
+                col3.metric("G_s (GPa)", f"{props['G_s']/1e9:.1f}")
         
-        if st.session_state.get("rotor"):
-            st.success("✅ Rotor actif dans la mémoire")
+        # --- ONGLET 2 : ARBRE ---
+        with tab_arbre:
+            st.caption("Éléments de poutre Timoshenko — L: Longueur, id: Diam. interne, od: Diam. externe")
+            st.info("💡 **Astuce Conique :** Entrez des valeurs différentes pour la Gauche (_L) et la Droite (_R) pour créer un arbre conique.")
+            
+            # Configuration des colonnes pour l'édition
+            column_config = {
+                "L (m)": st.column_config.NumberColumn("L (m)", min_value=0.01, max_value=5.0, step=0.01),
+                "id_L (m)": st.column_config.NumberColumn("id_L (m)", min_value=0.0, max_value=1.0, step=0.001),
+                "od_L (m)": st.column_config.NumberColumn("od_L (m)", min_value=0.01, max_value=1.0, step=0.001),
+                "id_R (m)": st.column_config.NumberColumn("id_R (m)", min_value=0.0, max_value=1.0, step=0.001),
+                "od_R (m)": st.column_config.NumberColumn("od_R (m)", min_value=0.01, max_value=1.0, step=0.001),
+            }
+            
+            st.session_state.df_shaft = st.data_editor(
+                st.session_state.df_shaft,
+                column_config=column_config,
+                num_rows="dynamic",
+                key="m1_shaft",
+                use_container_width=True
+            )
+        
+        # --- ONGLET 3 : DISQUES ---
+        with tab_disques:
+            st.caption("Masses concentrées (Disques / Roues)")
+            
+            column_config_disk = {
+                "nœud": st.column_config.NumberColumn("Nœud", min_value=0, max_value=100, step=1),
+                "Masse (kg)": st.column_config.NumberColumn("Masse (kg)", min_value=0.0, max_value=1000.0, step=0.1),
+                "Id (kg.m²)": st.column_config.NumberColumn("Id (kg.m²)", min_value=0.0, max_value=100.0, step=0.001),
+                "Ip (kg.m²)": st.column_config.NumberColumn("Ip (kg.m²)", min_value=0.0, max_value=100.0, step=0.001),
+            }
+            
+            st.session_state.df_disk = st.data_editor(
+                st.session_state.df_disk,
+                column_config=column_config_disk,
+                num_rows="dynamic",
+                key="m1_disk",
+                use_container_width=True
+            )
+            
+            # Aide à la saisie
+            with st.expander("📐 Calcul automatique des inerties"):
+                st.markdown("""
+                Pour un disque plein : **Id = (1/12) × m × (3r² + h²)**  
+                Pour un disque annulaire : **Id = (1/12) × m × (3(R² + r²) + h²)**  
+                
+                **Ip = 2 × Id** pour un disque mince (approximation)
+                """)
+        
+        # --- ONGLET 4 : PALIERS ---
+        with tab_paliers:
+            col_preset, _ = st.columns([3, 7])
+            with col_preset:
+                preset = st.selectbox("Preset (optionnel) :", ["-", *list(BEARING_PRESETS.keys())], key="m1_bp")
+                if preset != "-":
+                    p = BEARING_PRESETS[preset]
+                    n_el_est = max(1, len(st.session_state.df_shaft))
+                    st.session_state.df_bear = pd.DataFrame([
+                        {"nœud": 0, "Type": "Palier", "kxx": p["kxx"], "kyy": p["kyy"], 
+                         "kxy": p["kxy"], "cxx": p["cxx"], "cyy": p["cyy"], "m (kg)": 0.0},
+                        {"nœud": n_el_est, "Type": "Palier", "kxx": p["kxx"], "kyy": p["kyy"], 
+                         "kxy": p["kxy"], "cxx": p["cxx"], "cyy": p["cyy"], "m (kg)": 0.0},
+                    ])
+            
+            # Configuration avancée des colonnes
+            column_config_bear = {
+                "nœud": st.column_config.NumberColumn("Nœud", min_value=0, max_value=100, step=1),
+                "Type": st.column_config.SelectboxColumn(
+                    "Type d'élément",
+                    options=["Palier", "Joint", "Roulement", "Masse"],
+                    required=True,
+                    default="Palier"
+                ),
+                "kxx": st.column_config.NumberColumn("kxx (N/m)", format="%.2e", step=1e5),
+                "kyy": st.column_config.NumberColumn("kyy (N/m)", format="%.2e", step=1e5),
+                "kxy": st.column_config.NumberColumn("kxy (N/m)", format="%.2e", step=1e5),
+                "cxx": st.column_config.NumberColumn("cxx (N.s/m)", format="%.2e", step=1e2),
+                "cyy": st.column_config.NumberColumn("cyy (N.s/m)", format="%.2e", step=1e2),
+                "m (kg)": st.column_config.NumberColumn("Masse (kg)", min_value=0.0, max_value=1000.0, step=0.1),
+            }
+            
+            st.info("💡 **Astuce :** Choisissez 'Masse' pour ajouter le poids d'un capteur ou d'un accouplement.")
+            
+            st.session_state.df_bear = st.data_editor(
+                st.session_state.df_bear,
+                column_config=column_config_bear,
+                num_rows="dynamic",
+                key="m1_bear",
+                use_container_width=True
+            )
+            
+            # Nettoyage des valeurs nulles
+            st.session_state.df_bear = st.session_state.df_bear.fillna(0.0)
+        
+        st.markdown("---")
+        
+        # =========================================================
+        # BOUTON D'ASSEMBLAGE
+        # =========================================================
+        col_btn, col_msg = st.columns([3, 7])
+        with col_btn:
+            if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
+                if not ROSS_AVAILABLE:
+                    st.error("❌ ROSS non disponible")
+                else:
+                    try:
+                        with st.spinner("Construction du modèle..."):
+                            # Récupération du matériau
+                            mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
+                            props = MATERIALS_DB.get(mat_name, MATERIALS_DB["Acier standard (AISI 1045)"])
+                            
+                            mat = rs.Material(
+                                name=mat_name.replace(" ", "_"),
+                                rho=props["rho"],
+                                E=props["E"],
+                                G_s=props["G_s"]
+                            )
+                            
+                            # Construction de l'arbre
+                            shaft = []
+                            for r in st.session_state.df_shaft.to_dict('records'):
+                                L = float(r.get("L (m)", 0.2))
+                                idl = float(r.get("id_L (m)", r.get("id (m)", 0.0)))
+                                odl = float(r.get("od_L (m)", r.get("od (m)", 0.05)))
+                                idr = float(r.get("id_R (m)", idl))
+                                odr = float(r.get("od_R (m)", odl))
+                                
+                                if L <= 0:
+                                    st.warning(f"⚠️ Élément avec L<=0 ignoré")
+                                    continue
+                                if idl >= odl or idr >= odr:
+                                    st.warning(f"⚠️ Élément avec id >= od ignoré")
+                                    continue
+                                
+                                shaft.append(rs.ShaftElement(
+                                    L=L, idl=idl, odl=odl, idr=idr, odr=odr,
+                                    material=mat
+                                ))
+                            
+                            if not shaft:
+                                st.error("❌ Aucun élément d'arbre valide")
+                                return
+                            
+                            # Construction des disques
+                            disks = []
+                            for _, row in st.session_state.df_disk.iterrows():
+                                try:
+                                    n = int(row["nœud"])
+                                    m = float(row["Masse (kg)"])
+                                    Id = float(row["Id (kg.m²)"])
+                                    Ip = float(row["Ip (kg.m²)"])
+                                    disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
+                                except Exception as e:
+                                    st.warning(f"⚠️ Disque ignoré : {e}")
+                            
+                            # Construction des paliers
+                            bearings = []
+                            for r in st.session_state.df_bear.to_dict('records'):
+                                try:
+                                    n = int(r["nœud"])
+                                    e_type = str(r.get("Type", "Palier")).strip()
+                                    
+                                    if e_type == "Masse":
+                                        m_val = float(r.get("m (kg)", 0.0))
+                                        if m_val > 0:
+                                            disks.append(rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0))
+                                    else:
+                                        kxx = float(r.get("kxx", 0.0))
+                                        kyy = float(r.get("kyy", 0.0))
+                                        kxy = float(r.get("kxy", 0.0))
+                                        cxx = float(r.get("cxx", 0.0))
+                                        cyy = float(r.get("cyy", 0.0))
+                                        
+                                        bearings.append(rs.BearingElement(
+                                            n=n, kxx=kxx, kyy=kyy, kxy=kxy, kyx=-kxy,
+                                            cxx=cxx, cyy=cyy
+                                        ))
+                                except Exception as e:
+                                    st.warning(f"⚠️ Palier ignoré : {e}")
+                            
+                            if not bearings:
+                                st.warning("⚠️ Aucun palier défini")
+                            
+                            # Assemblage final
+                            rotor = rs.Rotor(shaft, disks, bearings)
+                            
+                            # Stockage dans la session
+                            st.session_state["rotor"] = rotor
+                            
+                            with col_msg:
+                                st.success(f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | Masse : {rotor.m:.2f} kg")
+                                st.balloons()
+                                
+                    except Exception as e:
+                        with col_msg:
+                            st.error(f"❌ Erreur d'assemblage : {e}")
     
-    else:
-        st.info(f"Module {selected} - En développement")
+    # =========================================================
+    # AFFICHAGE DU ROTOR ASSEMBLÉ
+    # =========================================================
+    rotor = st.session_state.get("rotor")
+    if rotor:
+        st.markdown("---")
+        st.subheader("📊 Visualisation du Rotor")
+        
+        # Métriques
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Masse totale", f"{rotor.m:.2f} kg")
+        with col2:
+            st.metric("Nœuds", len(rotor.nodes))
+        with col3:
+            L_totale = sum(r.get("L (m)", 0) for r in st.session_state.df_shaft.to_dict('records'))
+            st.metric("Longueur totale", f"{L_totale:.3f} m")
+        
+        # Visualisation 3D
+        try:
+            fig = rotor.plot_rotor()
+            st.plotly_chart(fig, use_container_width=True)
+            # Sauvegarde pour le rapport PDF
+            st.session_state["img_rotor"] = fig.to_image(format="png", width=700, height=400)
+        except Exception as e:
+            st.info(f"ℹ️ Visualisation 3D non disponible : {e}")
+        
+        # Export Python
+        with st.expander("📜 Exporter le code Python"):
+            st.code(f"""
+# Script ROSS généré par RotorLab Suite
+import ross as rs
+import numpy as np
+
+# Matériau
+mat = rs.Material(name="{mat_name}", rho={props['rho']}, E={props['E']:.2e}, G_s={props['G_s']:.2e})
+
+# Arbre
+shaft = [
+    rs.ShaftElement(L={r['L (m)']}, idl={r.get('id_L (m)', 0)}, odl={r.get('od_L (m)', 0.05)},
+                    idr={r.get('id_R (m)', r.get('id_L (m)', 0))}, odr={r.get('od_R (m)', r.get('od_L (m)', 0.05))},
+                    material=mat)
+    for r in {st.session_state.df_shaft.to_dict('records')}
+]
+
+# Disques
+disks = [
+    rs.DiskElement(n={row['nœud']}, m={row['Masse (kg)']}, Id={row['Id (kg.m²)']}, Ip={row['Ip (kg.m²)']})
+    for _, row in st.session_state.df_disk.iterrows()
+]
+
+# Paliers
+bearings = [
+    rs.BearingElement(n={r['nœud']}, kxx={r['kxx']}, kyy={r['kyy']}, kxy={r['kxy']}, cxx={r['cxx']}, cyy={r['cyy']})
+    for r in st.session_state.df_bear.to_dict('records') if r.get('Type', 'Palier') != 'Masse'
+]
+
+# Assemblage
+rotor = rs.Rotor(shaft, disks, bearings)
+print(f"Masse : {{rotor.m:.2f}} kg")
+rotor.plot_rotor()
+""", language="python")
 
 # -----------------------------------------------------------------------------
 # PAGE : BIBLIOTHÈQUE
