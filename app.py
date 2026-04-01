@@ -96,7 +96,7 @@ def init_session_state():
         "user_name": "Utilisateur",
         "badges": {},
         "tut_done": set(),
-        "current_page": "Tableau de Bord",
+        "current_page": "Tableau de Bord",  # Page par défaut
         "sim_module": "M1",
         "tut_active": "T1",
         "df_shaft": pd.DataFrame([{"L (m)": 0.2, "od (m)": 0.05} for _ in range(5)]),
