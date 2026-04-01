@@ -740,7 +740,7 @@ elif current_page == "🔬 Mode Simulation":
                 st.info(f"ℹ️ Visualisation 3D non disponible : {e}")
             
 
-            # Export Python (version entièrement corrigée)
+            # Export Python (version sans f-string problématique)
             with st.expander("📜 Exporter le code Python"):
                 # Récupération des données
                 shaft_data = st.session_state.df_shaft.to_dict('records')
@@ -759,12 +759,12 @@ elif current_page == "🔬 Mode Simulation":
                 code_lines.append("# =============================================================")
                 code_lines.append("# MATÉRIAU")
                 code_lines.append("# =============================================================")
-                code_lines.append(f"mat = rs.Material(")
-                code_lines.append(f"    name='{mat_name}',")
-                code_lines.append(f"    rho={props['rho']},")
-                code_lines.append(f"    E={props['E']:.2e},")
-                code_lines.append(f"    G_s={props['G_s']:.2e}")
-                code_lines.append(f")")
+                code_lines.append("mat = rs.Material(")
+                code_lines.append("    name='{}',".format(mat_name))
+                code_lines.append("    rho={},".format(props['rho']))
+                code_lines.append("    E={:.2e},".format(props['E']))
+                code_lines.append("    G_s={:.2e}".format(props['G_s']))
+                code_lines.append(")")
                 code_lines.append("")
                 
                 code_lines.append("# =============================================================")
@@ -779,11 +779,11 @@ elif current_page == "🔬 Mode Simulation":
                     odr = r.get("od_R (m)", odl)
                     
                     code_lines.append("shaft.append(rs.ShaftElement(")
-                    code_lines.append(f"    L={L},")
-                    code_lines.append(f"    idl={idl},")
-                    code_lines.append(f"    odl={odl},")
-                    code_lines.append(f"    idr={idr},")
-                    code_lines.append(f"    odr={odr},")
+                    code_lines.append("    L={},".format(L))
+                    code_lines.append("    idl={},".format(idl))
+                    code_lines.append("    odl={},".format(odl))
+                    code_lines.append("    idr={},".format(idr))
+                    code_lines.append("    odr={},".format(odr))
                     code_lines.append("    material=mat")
                     code_lines.append("))")
                 code_lines.append("")
@@ -811,10 +811,10 @@ elif current_page == "🔬 Mode Simulation":
                         Ip = r["Ip"]
                     
                     code_lines.append("disks.append(rs.DiskElement(")
-                    code_lines.append(f"    n={n},")
-                    code_lines.append(f"    m={m},")
-                    code_lines.append(f"    Id={Id},")
-                    code_lines.append(f"    Ip={Ip}")
+                    code_lines.append("    n={},".format(n))
+                    code_lines.append("    m={},".format(m))
+                    code_lines.append("    Id={},".format(Id))
+                    code_lines.append("    Ip={}".format(Ip))
                     code_lines.append("))")
                 code_lines.append("")
                 
@@ -831,13 +831,13 @@ elif current_page == "🔬 Mode Simulation":
                     cyy = r.get("cyy", 0)
                     
                     code_lines.append("bearings.append(rs.BearingElement(")
-                    code_lines.append(f"    n={n},")
-                    code_lines.append(f"    kxx={kxx},")
-                    code_lines.append(f"    kyy={kyy},")
-                    code_lines.append(f"    kxy={kxy},")
-                    code_lines.append(f"    kyx=-{kxy},")
-                    code_lines.append(f"    cxx={cxx},")
-                    code_lines.append(f"    cyy={cyy}")
+                    code_lines.append("    n={},".format(n))
+                    code_lines.append("    kxx={},".format(kxx))
+                    code_lines.append("    kyy={},".format(kyy))
+                    code_lines.append("    kxy={},".format(kxy))
+                    code_lines.append("    kyx=-{},".format(kxy))
+                    code_lines.append("    cxx={},".format(cxx))
+                    code_lines.append("    cyy={}".format(cyy))
                     code_lines.append("))")
                 code_lines.append("")
                 
