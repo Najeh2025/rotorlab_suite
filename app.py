@@ -640,9 +640,9 @@ elif current_page == "🔬 Mode Simulation":
                                     material=mat
                                 ))
                             
-                            if not shaft:
-                                st.error("❌ Aucun élément d'arbre valide")
-                            return
+                                if not shaft:
+                                    st.error("❌ Aucun élément d'arbre valide")
+                                return
                             
                             # Construction des disques
                             disks = []
