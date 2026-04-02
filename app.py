@@ -901,8 +901,8 @@ elif current_page == "🔬 Mode Simulation":
                 rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
             )
     
-        except Exception as e:
-            st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
+            except Exception as e:
+                st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
     
     # Paliers
     bearings = [
