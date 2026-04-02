@@ -896,10 +896,12 @@ elif current_page == "🔬 Mode Simulation":
                 st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
                 continue
     
-            disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
+            disks.append(
+                rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
+            )
     
         except Exception as e:
-            st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {type(e).__name__} — {e}")
+            st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
     
         
     # Paliers
