@@ -391,6 +391,7 @@ elif current_page == "🔬 Mode Simulation":
     # M1 - Constructeur
     # M1 - Constructeur de Rotor (version complète)
     # M1 - Constructeur de Rotor (version complète - corrigée)
+    # M1 - Constructeur de Rotor (version finale corrigée)
     if "M1" in selected:
         st.subheader("🏗️ M1 — Constructeur de Rotor")
         st.caption("Bibliothèque de matériaux · Validation temps réel · Export JSON/Python")
@@ -447,6 +448,7 @@ elif current_page == "🔬 Mode Simulation":
                 uploaded_file = st.file_uploader("Charger", type=["json"], label_visibility="collapsed")
                 if uploaded_file is not None:
                     try:
+                        import json
                         data = json.load(uploaded_file)
                         if "shaft" in data:
                             st.session_state.df_shaft = pd.DataFrame(data["shaft"])
@@ -465,6 +467,7 @@ elif current_page == "🔬 Mode Simulation":
                     "disks": st.session_state.df_disk.to_dict(orient="records"),
                     "bearings": st.session_state.df_bear.to_dict(orient="records")
                 }
+                import json
                 json_str = json.dumps(current_data, indent=4, default=str)
                 st.download_button(
                     label="💾 Enregistrer les données",
@@ -622,7 +625,6 @@ elif current_page == "🔬 Mode Simulation":
                             
                             # Construction de l'arbre
                             shaft = []
-                            shaft_error = False
                             for r in st.session_state.df_shaft.to_dict('records'):
                                 L = float(r.get("L (m)", 0.2))
                                 idl = float(r.get("id_L (m)", r.get("id (m)", 0.0)))
@@ -646,37 +648,33 @@ elif current_page == "🔬 Mode Simulation":
                                 st.error("❌ Aucun élément d'arbre valide")
                             else:
                                 # Construction des disques
-                                # Construction des disques (version robuste)
                                 disks = []
-                                for _, row in st.session_state.df_disk.iterrows():
+                                for idx, row in st.session_state.df_disk.iterrows():
                                     try:
                                         n = int(row["nœud"])
                                         m = float(row["Masse (kg)"])
                                         
-                                        # Lecture robuste de Id et Ip (gère les variations de casse)
+                                        # Lecture robuste de Id
                                         Id = 0.0
-                                        Ip = 0.0
-                                        
-                                        # Chercher la colonne Id (insensible à la casse)
-                                        for col in row.index:
-                                            if col.lower() in ["id", "id (kg.m²)", "id (kg.m2)", "id (kgm²)"]:
-                                                Id = float(row[col])
-                                            if col.lower() in ["ip", "ip (kg.m²)", "ip (kg.m2)", "ip (kgm²)"]:
-                                                Ip = float(row[col])
-                                        
-                                        # Fallback sur les noms exacts si non trouvés
-                                        if Id == 0.0 and "Id (kg.m²)" in row:
+                                        if "Id (kg.m²)" in row:
                                             Id = float(row["Id (kg.m²)"])
-                                        if Ip == 0.0 and "Ip (kg.m²)" in row:
+                                        elif "Id" in row:
+                                            Id = float(row["Id"])
+                                        
+                                        # Lecture robuste de Ip
+                                        Ip = 0.0
+                                        if "Ip (kg.m²)" in row:
                                             Ip = float(row["Ip (kg.m²)"])
+                                        elif "Ip" in row:
+                                            Ip = float(row["Ip"])
                                         
                                         disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
                                     except Exception as e:
-                                        st.warning(f"⚠️ Disque ignoré : {e}")
+                                        st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
                                 
                                 # Construction des paliers
                                 bearings = []
-                                for r in st.session_state.df_bear.to_dict('records'):
+                                for idx, r in enumerate(st.session_state.df_bear.to_dict('records')):
                                     try:
                                         n = int(r["nœud"])
                                         e_type = str(r.get("Type", "Palier")).strip()
@@ -697,7 +695,7 @@ elif current_page == "🔬 Mode Simulation":
                                                 cxx=cxx, cyy=cyy
                                             ))
                                     except Exception as e:
-                                        st.warning(f"⚠️ Palier ignoré : {e}")
+                                        st.warning(f"⚠️ Palier ligne {idx+1} ignoré : {e}")
                                 
                                 if not bearings:
                                     st.warning("⚠️ Aucun palier défini")
@@ -739,8 +737,9 @@ elif current_page == "🔬 Mode Simulation":
             except Exception as e:
                 st.info(f"ℹ️ Visualisation 3D non disponible : {e}")
             
-
-            # Export Python (version sans f-string problématique)
+            # =========================================================
+            # EXPORT PYTHON (VERSION FINALE SANS ERREUR)
+            # =========================================================
             with st.expander("📜 Exporter le code Python"):
                 # Récupération des données
                 shaft_data = st.session_state.df_shaft.to_dict('records')
@@ -796,14 +795,12 @@ elif current_page == "🔬 Mode Simulation":
                     n = r.get("nœud", 0)
                     m = r.get("Masse (kg)", 0)
                     
-                    # Lecture robuste de Id
                     Id = 0.0
                     if "Id (kg.m²)" in r:
                         Id = r["Id (kg.m²)"]
                     elif "Id" in r:
                         Id = r["Id"]
                     
-                    # Lecture robuste de Ip
                     Ip = 0.0
                     if "Ip (kg.m²)" in r:
                         Ip = r["Ip (kg.m²)"]
