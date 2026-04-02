@@ -883,10 +883,26 @@ elif current_page == "🔬 Mode Simulation":
     )
     
     # Disques
-    disks = [
-        rs.DiskElement(n={row['nœud']}, m={row['Masse (kg)']}, Id={row['Id (kg.m²)']}, Ip={row['Ip (kg.m²)']})
-        for _, row in st.session_state.df_disk.iterrows()
-    ]
+    disks = []
+
+    for idx, row in st.session_state.df_disk.iterrows():
+        try:
+            n = int(row.get("nœud", 0))
+            m = float(row.get("Masse (kg)", 0.0))
+    
+            Id = float(row.get("Id (kg.m²)", row.get("Id", 0.0)))
+            Ip = float(row.get("Ip (kg.m²)", row.get("Ip", 0.0)))
+    
+            if m <= 0:
+                st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
+                continue
+    
+            disks.append(
+                rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
+            )
+    
+        except Exception as e:
+            st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
     
     # Paliers
     bearings = [
