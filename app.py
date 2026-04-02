@@ -871,12 +871,16 @@ elif current_page == "🔬 Mode Simulation":
     mat = rs.Material(name="{mat_name}", rho={props['rho']}, E={props['E']:.2e}, G_s={props['G_s']:.2e})
     
     # Arbre
-    shaft = [
-        rs.ShaftElement(L={r['L (m)']}, idl={r.get('id_L (m)', 0)}, odl={r.get('od_L (m)', 0.05)},
-                        idr={r.get('id_R (m)', r.get('id_L (m)', 0))}, odr={r.get('od_R (m)', r.get('od_L (m)', 0.05))},
-                        material=mat)
-        for r in {st.session_state.df_shaft.to_dict('records')}
-    ]
+    shaft.append(
+    rs.ShaftElement(
+        L=float(r.get("L (m)", 0.2)),
+        idl=float(r.get("id_L (m)", 0.0)),
+        odl=float(r.get("od_L (m)", 0.05)),
+        idr=float(r.get("id_R (m)", r.get("id_L (m)", 0.0))),
+        odr=float(r.get("od_R (m)", r.get("od_L (m)", 0.05))),
+        material=mat
+        )
+    )
     
     # Disques
     disks = [
