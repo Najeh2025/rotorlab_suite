@@ -883,30 +883,59 @@ elif current_page == "🔬 Mode Simulation":
     )
     
     # Disques
-    disks = []
-
-    for idx, row in st.session_state.df_disk.iterrows():
-        try:
-            n = int(row.get("nœud", 0))
-            m = float(row.get("Masse (kg)", 0.0))
-            Id = float(row.get("Id (kg.m²)", row.get("Id", 0.0)))
-            Ip = float(row.get("Ip (kg.m²)", row.get("Ip", 0.0)))
-    
-            if m <= 0:
-                st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
-                continue
-    
-            disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
-    
-        except Exception as e:
-            st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {type(e).__name__} — {e}")
-    
-        
-    # Paliers
-    bearings = [
-        rs.BearingElement(n={r['nœud']}, kxx={r['kxx']}, kyy={r['kyy']}, kxy={r['kxy']}, cxx={r['cxx']}, cyy={r['cyy']})
-        for r in st.session_state.df_bear.to_dict('records') if r.get('Type', 'Palier') != 'Masse'
-    ]
+                        # =========================================================
+                    # CONSTRUCTION DES DISQUES (CORRIGÉ)
+                    # =========================================================
+                    disks = []
+                    for i, row in st.session_state.df_disk.iterrows():
+                        try:
+                            n = int(row["nœud"])
+                            m = float(row["Masse (kg)"])
+                            
+                            # Lecture robuste de Id
+                            Id = 0.0
+                            if "Id (kg.m²)" in row:
+                                Id = float(row["Id (kg.m²)"])
+                            elif "Id" in row:
+                                Id = float(row["Id"])
+                            
+                            # Lecture robuste de Ip
+                            Ip = 0.0
+                            if "Ip (kg.m²)" in row:
+                                Ip = float(row["Ip (kg.m²)"])
+                            elif "Ip" in row:
+                                Ip = float(row["Ip"])
+                            
+                            disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
+                        except Exception as e:
+                            st.warning(f"⚠️ Disque ligne {i+1} ignoré : {e}")
+                    
+                    # =========================================================
+                    # CONSTRUCTION DES PALIERS (CORRIGÉ)
+                    # =========================================================
+                    bearings = []
+                    for j, r in enumerate(st.session_state.df_bear.to_dict('records')):
+                        try:
+                            n = int(r["nœud"])
+                            e_type = str(r.get("Type", "Palier")).strip()
+                            
+                            if e_type == "Masse":
+                                m_val = float(r.get("m (kg)", 0.0))
+                                if m_val > 0:
+                                    disks.append(rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0))
+                            else:
+                                kxx = float(r.get("kxx", 0.0))
+                                kyy = float(r.get("kyy", 0.0))
+                                kxy = float(r.get("kxy", 0.0))
+                                cxx = float(r.get("cxx", 0.0))
+                                cyy = float(r.get("cyy", 0.0))
+                                
+                                bearings.append(rs.BearingElement(
+                                    n=n, kxx=kxx, kyy=kyy, kxy=kxy, kyx=-kxy,
+                                    cxx=cxx, cyy=cyy
+                                ))
+                        except Exception as e:
+                            st.warning(f"⚠️ Palier ligne {j+1} ignoré : {e}")
     
     # Assemblage
     rotor = rs.Rotor(shaft, disks, bearings)
