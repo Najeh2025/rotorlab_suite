@@ -600,11 +600,10 @@ elif current_page == "🔬 Mode Simulation":
             st.session_state.df_bear = st.session_state.df_bear.fillna(0.0)
         
         st.markdown("---")
-        
-                # =========================================================
-                # BOUTON D'ASSEMBLAGE
-                # =========================================================
-                col_btn, col_msg = st.columns([3, 7])
+# =========================================================
+# BOUTON D'ASSEMBLAGE
+# =========================================================
+        col_btn, col_msg = st.columns([3, 7])
                 
                 with col_btn:
                     if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
@@ -714,7 +713,8 @@ elif current_page == "🔬 Mode Simulation":
                                             st.warning(
                                                 f"⚠️ Palier ligne {idx+1} ignoré : "
                                                 f"{type(e).__name__} — {e}"
-                                            )
+                                            )        
+                
 
                     # =========================
                     # ASSEMBLAGE FINAL
