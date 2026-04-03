@@ -715,24 +715,24 @@ elif current_page == "🔬 Mode Simulation":
                                         f"{type(e).__name__} — {e}"
                                     )
 
-                    # =========================
-                    # ASSEMBLAGE FINAL
-                    # =========================
-                    rotor = rs.Rotor(shaft, disks, bearings)
-                    st.session_state["rotor"] = rotor
-
-                with col_msg:
-                    st.success(
-                        f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | "
-                        f"Masse : {rotor.m:.2f} kg"
-                    )
-                    st.balloons()
-
-            except Exception as e:
-                with col_msg:
-                    st.error(
-                        f"❌ Erreur d’assemblage : {type(e).__name__} — {e}"
-                    )
+                            # =========================
+                            # ASSEMBLAGE FINAL
+                            # =========================
+                            rotor = rs.Rotor(shaft, disks, bearings)
+                            st.session_state["rotor"] = rotor
+        
+                        with col_msg:
+                            st.success(
+                                f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | "
+                                f"Masse : {rotor.m:.2f} kg"
+                            )
+                            st.balloons()
+        
+                    except Exception as e:
+                        with col_msg:
+                            st.error(
+                                f"❌ Erreur d’assemblage : {type(e).__name__} — {e}"
+                            )
  
         
         # =========================================================
