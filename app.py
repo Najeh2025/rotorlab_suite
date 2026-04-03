@@ -883,7 +883,196 @@ elif current_page == "🔬 Mode Simulation":
                     use_container_width=True
                 )
                 
-  
+        # M2 - Statique & Modal
+    elif "M2" in selected:
+        st.subheader("📊 M2 — Analyses Statiques & Modales")
+        st.caption("Déflexion statique · Fréquences propres · Amortissement · Stabilité")
+        
+        # Vérification qu'un rotor existe
+        rotor = st.session_state.get("rotor")
+        if rotor is None:
+            st.warning("⚠️ Aucun rotor n'est chargé. Veuillez d'abord assembler un rotor dans le module M1.")
+            
+            # Option pour charger un exemple
+            if ROSS_AVAILABLE and st.button("🔧 Charger un rotor exemple (compresseur)", use_container_width=True):
+                with st.spinner("Chargement..."):
+                    try:
+                        comp = rs.compressor_example()
+                        st.session_state["rotor"] = comp
+                        st.success("✅ Rotor exemple chargé !")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
+            return
+        
+        # Onglets principaux
+        tab_stat, tab_modal = st.tabs(["📏 Analyse Statique", "🎵 Analyse Modale"])
+        
+        # =========================================================
+        # ANALYSE STATIQUE
+        # =========================================================
+        with tab_stat:
+            st.markdown("### 📏 Analyse Statique sous Gravité")
+            st.info("Calcule la déflexion de l'arbre sous son propre poids et celui des disques, ainsi que les réactions aux paliers.")
+            
+            if st.button("📐 Lancer l'analyse statique", type="primary", use_container_width=True):
+                with st.spinner("Calcul statique en cours..."):
+                    try:
+                        static = rotor.run_static()
+                        st.session_state["static_result"] = static
+                        st.success("✅ Analyse statique terminée !")
+                    except Exception as e:
+                        st.error(f"Erreur lors du calcul statique : {e}")
+            
+            # Affichage des résultats si disponibles
+            static = st.session_state.get("static_result")
+            if static is not None:
+                st.markdown("---")
+                st.markdown("### 📊 Résultats")
+                
+                # Métriques
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    max_deflection = max(abs(static.shaft_deflection)) if hasattr(static, 'shaft_deflection') else 0
+                    st.metric("Flèche maximale", f"{max_deflection*1e6:.2f} µm")
+                with col2:
+                    st.metric("Réaction palier gauche", f"{static.bearing_forces[0,0]/1000:.1f} N" if hasattr(static, 'bearing_forces') else "N/A")
+                with col3:
+                    st.metric("Réaction palier droit", f"{static.bearing_forces[-1,0]/1000:.1f} N" if hasattr(static, 'bearing_forces') else "N/A")
+                
+                # Visualisations
+                st.markdown("### 📈 Diagrammes")
+                
+                plot_options = ["Déformée de l'arbre", "Moment fléchissant", "Effort tranchant"]
+                selected_plot = st.radio("Sélectionnez le diagramme :", plot_options, horizontal=True)
+                
+                try:
+                    if selected_plot == "Déformée de l'arbre":
+                        fig = static.plot_deflection()
+                    elif selected_plot == "Moment fléchissant":
+                        fig = static.plot_bending_moment()
+                    else:
+                        fig = static.plot_shear_force()
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    try:
+                        # Fallback pour différentes versions de ROSS
+                        if selected_plot == "Déformée de l'arbre":
+                            fig = static.plot_deformation()
+                        elif selected_plot == "Moment fléchissant":
+                            fig = static.plot_bending_moment()
+                        else:
+                            fig = static.plot_shearing_force()
+                        st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e2:
+                        st.info(f"Visualisation non disponible : {e2}")
+        
+        # =========================================================
+        # ANALYSE MODALE
+        # =========================================================
+        with tab_modal:
+            st.markdown("### 🎵 Analyse Modale")
+            st.info("Calcule les fréquences naturelles, les décréments logarithmiques et les modes de vibration.")
+            
+            # Paramètres
+            col1, col2 = st.columns(2)
+            with col1:
+                speed_rpm = st.number_input("Vitesse de rotation (RPM)", min_value=0, max_value=50000, value=0, step=100, key="m2_speed")
+            with col2:
+                n_modes = st.slider("Nombre de modes à calculer", min_value=4, max_value=20, value=8, step=2, key="m2_nmodes")
+            
+            if st.button("🎵 Lancer l'analyse modale", type="primary", use_container_width=True):
+                with st.spinner(f"Calcul modal à {speed_rpm} RPM..."):
+                    try:
+                        speed_rad = speed_rpm * np.pi / 30
+                        modal = rotor.run_modal(speed=speed_rad)
+                        st.session_state["modal_result"] = modal
+                        st.success("✅ Analyse modale terminée !")
+                    except Exception as e:
+                        st.error(f"Erreur lors du calcul modal : {e}")
+            
+            # Affichage des résultats
+            modal = st.session_state.get("modal_result")
+            if modal is not None:
+                st.markdown("---")
+                st.markdown("### 📊 Résultats Modaux")
+                
+                # Préparation du tableau des modes
+                wn_hz = modal.wn / (2 * np.pi)
+                wd_hz = modal.wd / (2 * np.pi) if hasattr(modal, 'wd') else wn_hz
+                log_dec = modal.log_dec if hasattr(modal, 'log_dec') else np.zeros(len(wn_hz))
+                
+                # Création du DataFrame
+                n = min(n_modes, len(wn_hz))
+                data = []
+                for i in range(n):
+                    # Évaluation de la stabilité
+                    if log_dec[i] > 0.3:
+                        stability = "✅ Très stable"
+                    elif log_dec[i] > 0.1:
+                        stability = "🟡 Stable"
+                    elif log_dec[i] > 0:
+                        stability = "⚠️ Peu amorti"
+                    else:
+                        stability = "❌ INSTABLE"
+                    
+                    data.append({
+                        "Mode": i+1,
+                        "fn (Hz)": f"{wn_hz[i]:.2f}",
+                        "ωn (rad/s)": f"{modal.wn[i]:.2f}",
+                        "Log Dec": f"{log_dec[i]:.4f}",
+                        "Stabilité": stability
+                    })
+                
+                df_modes = pd.DataFrame(data)
+                st.dataframe(df_modes, use_container_width=True, hide_index=True)
+                
+                # Métriques clés
+                st.markdown("### 📈 Indicateurs de stabilité")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    min_log_dec = min(log_dec[:n])
+                    color = "🟢" if min_log_dec > 0.1 else "🟠" if min_log_dec > 0 else "🔴"
+                    st.metric("Log Dec minimum", f"{color} {min_log_dec:.4f}")
+                with col2:
+                    unstable_modes = sum(1 for i in range(n) if log_dec[i] <= 0)
+                    st.metric("Modes instables", unstable_modes)
+                with col3:
+                    stable_modes = sum(1 for i in range(n) if log_dec[i] > 0.1)
+                    st.metric("Modes stables (δ>0.1)", stable_modes)
+                
+                # Visualisation des modes
+                st.markdown("### 🎬 Visualisation des modes")
+                
+                mode_idx = st.selectbox(
+                    "Sélectionnez un mode à visualiser :",
+                    range(n),
+                    format_func=lambda x: f"Mode {x+1} — {wn_hz[x]:.2f} Hz | δ={log_dec[x]:.4f}"
+                )
+                
+                try:
+                    # Tentative avec plot_mode_3d
+                    if hasattr(modal, 'plot_mode_3d'):
+                        fig = modal.plot_mode_3d(mode=mode_idx)
+                        st.plotly_chart(fig, use_container_width=True)
+                    elif hasattr(modal, 'plot_mode_shape'):
+                        fig = modal.plot_mode_shape(mode=mode_idx)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("Visualisation 3D des modes non disponible dans cette version de ROSS")
+                except Exception as e:
+                    st.info(f"Visualisation du mode {mode_idx+1} non disponible")
+                
+                # Export CSV
+                st.markdown("---")
+                csv_data = df_modes.to_csv(index=False).encode()
+                st.download_button(
+                    label="📥 Exporter les fréquences (CSV)",
+                    data=csv_data,
+                    file_name="frequences_modales.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )  
 # -----------------------------------------------------------------------------
 # PAGE : BIBLIOTHÈQUE
 # -----------------------------------------------------------------------------
