@@ -604,117 +604,116 @@ elif current_page == "🔬 Mode Simulation":
 # BOUTON D'ASSEMBLAGE
 # =========================================================
         col_btn, col_msg = st.columns([3, 7])
-                
-                with col_btn:
-                    if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
-                        if not ROSS_AVAILABLE:
-                            st.error("❌ ROSS non disponible")
-                        else:
-                            try:
-                                with st.spinner("Construction du modèle..."):
-                
-                                    # =========================
-                                    # MATÉRIAU
-                                    # =========================
-                                    mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
-                                    props = MATERIALS_DB.get(
-                                        mat_name, MATERIALS_DB["Acier standard (AISI 1045)"]
+        
+        with col_btn:
+            if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
+                if not ROSS_AVAILABLE:
+                    st.error("❌ ROSS non disponible")
+                else:
+                    try:
+                        with st.spinner("Construction du modèle..."):
+        
+                            # =========================
+                            # MATÉRIAU
+                            # =========================
+                            mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
+                            props = MATERIALS_DB.get(
+                                mat_name, MATERIALS_DB["Acier standard (AISI 1045)"]
+                            )
+        
+                            mat = rs.Material(
+                                name=mat_name.replace(" ", "_"),
+                                rho=props["rho"],
+                                E=props["E"],
+                                G_s=props["G_s"]
+                            )
+        
+                            # =========================
+                            # ARBRE
+                            # =========================
+                            shaft = []
+                            for r in st.session_state.df_shaft.to_dict("records"):
+                                L = float(r.get("L (m)", 0.2))
+                                idl = float(r.get("id_L (m)", 0.0))
+                                odl = float(r.get("od_L (m)", 0.05))
+                                idr = float(r.get("id_R (m)", idl))
+                                odr = float(r.get("od_R (m)", odl))
+        
+                                if L <= 0 or idl >= odl or idr >= odr:
+                                    st.warning("⚠️ Élément d’arbre invalide ignoré")
+                                    continue
+        
+                                shaft.append(
+                                    rs.ShaftElement(
+                                        L=L, idl=idl, odl=odl,
+                                        idr=idr, odr=odr,
+                                        material=mat
                                     )
-                
-                                    mat = rs.Material(
-                                        name=mat_name.replace(" ", "_"),
-                                        rho=props["rho"],
-                                        E=props["E"],
-                                        G_s=props["G_s"]
+                                )
+        
+                            if not shaft:
+                                st.error("❌ Aucun élément d’arbre valide")
+                                st.stop()
+        
+                            # =========================
+                            # DISQUES
+                            # =========================
+                            disks = []
+                            for idx, row in st.session_state.df_disk.iterrows():
+                                try:
+                                    m = float(row.get("Masse (kg)", 0.0))
+                                    if m <= 0:
+                                        st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
+                                        continue
+        
+                                    n = int(row.get("nœud", 0))
+                                    Id = float(row.get("Id (kg.m²)", row.get("Id", 0.0)))
+                                    Ip = float(row.get("Ip (kg.m²)", row.get("Ip", 0.0)))
+        
+                                    disks.append(
+                                        rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
                                     )
-                
-                                    # =========================
-                                    # ARBRE
-                                    # =========================
-                                    shaft = []
-                                    for r in st.session_state.df_shaft.to_dict("records"):
-                                        L = float(r.get("L (m)", 0.2))
-                                        idl = float(r.get("id_L (m)", 0.0))
-                                        odl = float(r.get("od_L (m)", 0.05))
-                                        idr = float(r.get("id_R (m)", idl))
-                                        odr = float(r.get("od_R (m)", odl))
-                
-                                        if L <= 0 or idl >= odl or idr >= odr:
-                                            st.warning("⚠️ Élément d’arbre invalide ignoré")
-                                            continue
-                
-                                        shaft.append(
-                                            rs.ShaftElement(
-                                                L=L, idl=idl, odl=odl,
-                                                idr=idr, odr=odr,
-                                                material=mat
-                                            )
-                                        )
-                
-                                    if not shaft:
-                                        st.error("❌ Aucun élément d’arbre valide")
-                                        st.stop()
-                
-                                    # =========================
-                                    # DISQUES
-                                    # =========================
-                                    disks = []
-                                    for idx, row in st.session_state.df_disk.iterrows():
-                                        try:
-                                            m = float(row.get("Masse (kg)", 0.0))
-                                            if m <= 0:
-                                                st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
-                                                continue
-                
-                                            n = int(row.get("nœud", 0))
-                                            Id = float(row.get("Id (kg.m²)", row.get("Id", 0.0)))
-                                            Ip = float(row.get("Ip (kg.m²)", row.get("Ip", 0.0)))
-                
+        
+                                except Exception as e:
+                                    st.warning(
+                                        f"⚠️ Disque ligne {idx+1} ignoré : "
+                                        f"{type(e).__name__} — {e}"
+                                    )
+        
+                            # =========================
+                            # PALIERS
+                            # =========================
+                            bearings = []
+                            for idx, r in enumerate(st.session_state.df_bear.to_dict("records")):
+                                try:
+                                    n = int(r["nœud"])
+                                    e_type = str(r.get("Type", "Palier")).strip()
+        
+                                    if e_type == "Masse":
+                                        m_val = float(r.get("m (kg)", 0.0))
+                                        if m_val > 0:
                                             disks.append(
-                                                rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
+                                                rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0)
                                             )
-                
-                                        except Exception as e:
-                                            st.warning(
-                                                f"⚠️ Disque ligne {idx+1} ignoré : "
-                                                f"{type(e).__name__} — {e}"
-                                            )
-                
-                                    # =========================
-                                    # PALIERS
-                                    # =========================
-                                    bearings = []
-                                    for idx, r in enumerate(st.session_state.df_bear.to_dict("records")):
-                                        try:
-                                            n = int(r["nœud"])
-                                            e_type = str(r.get("Type", "Palier")).strip()
-                
-                                            if e_type == "Masse":
-                                                m_val = float(r.get("m (kg)", 0.0))
-                                                if m_val > 0:
-                                                    disks.append(
-                                                        rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0)
-                                                    )
-                                                continue
-                
-                                            bearings.append(
-                                                rs.BearingElement(
-                                                    n=n,
-                                                    kxx=float(r.get("kxx", 0.0)),
-                                                    kyy=float(r.get("kyy", 0.0)),
-                                                    kxy=float(r.get("kxy", 0.0)),
-                                                    kyx=-float(r.get("kxy", 0.0)),
-                                                    cxx=float(r.get("cxx", 0.0)),
-                                                    cyy=float(r.get("cyy", 0.0))
-                                                )
-                                            )
-                
-                                        except Exception as e:
-                                            st.warning(
-                                                f"⚠️ Palier ligne {idx+1} ignoré : "
-                                                f"{type(e).__name__} — {e}"
-                                            )        
-                
+                                        continue
+        
+                                    bearings.append(
+                                        rs.BearingElement(
+                                            n=n,
+                                            kxx=float(r.get("kxx", 0.0)),
+                                            kyy=float(r.get("kyy", 0.0)),
+                                            kxy=float(r.get("kxy", 0.0)),
+                                            kyx=-float(r.get("kxy", 0.0)),
+                                            cxx=float(r.get("cxx", 0.0)),
+                                            cyy=float(r.get("cyy", 0.0))
+                                        )
+                                    )
+        
+                                except Exception as e:
+                                    st.warning(
+                                        f"⚠️ Palier ligne {idx+1} ignoré : "
+                                        f"{type(e).__name__} — {e}"
+                                    )
 
                     # =========================
                     # ASSEMBLAGE FINAL
@@ -734,6 +733,7 @@ elif current_page == "🔬 Mode Simulation":
                     st.error(
                         f"❌ Erreur d’assemblage : {type(e).__name__} — {e}"
                     )
+ 
         
         # =========================================================
         # AFFICHAGE DU ROTOR ASSEMBLÉ
