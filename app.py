@@ -601,118 +601,139 @@ elif current_page == "🔬 Mode Simulation":
         
         st.markdown("---")
         
-        # =========================================================
-        # BOUTON D'ASSEMBLAGE
-        # =========================================================
-        col_btn, col_msg = st.columns([3, 7])
-        with col_btn:
-            if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
-                if not ROSS_AVAILABLE:
-                    st.error("❌ ROSS non disponible")
-                else:
-                    try:
-                        with st.spinner("Construction du modèle..."):
-                            # Récupération du matériau
-                            mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
-                            props = MATERIALS_DB.get(mat_name, MATERIALS_DB["Acier standard (AISI 1045)"])
-                            
-                            mat = rs.Material(
-                                name=mat_name.replace(" ", "_"),
-                                rho=props["rho"],
-                                E=props["E"],
-                                G_s=props["G_s"]
-                            )
-                            
-                            # Construction de l'arbre
-                            shaft = []
-                            for r in st.session_state.df_shaft.to_dict('records'):
-                                L = float(r.get("L (m)", 0.2))
-                                idl = float(r.get("id_L (m)", r.get("id (m)", 0.0)))
-                                odl = float(r.get("od_L (m)", r.get("od (m)", 0.05)))
-                                idr = float(r.get("id_R (m)", idl))
-                                odr = float(r.get("od_R (m)", odl))
-                                
-                                if L <= 0:
-                                    st.warning(f"⚠️ Élément avec L<=0 ignoré")
-                                    continue
-                                if idl >= odl or idr >= odr:
-                                    st.warning(f"⚠️ Élément avec id >= od ignoré")
-                                    continue
-                                
-                                shaft.append(rs.ShaftElement(
-                                    L=L, idl=idl, odl=odl, idr=idr, odr=odr,
-                                    material=mat
-                                ))
-                            
-                            if not shaft:
-                                st.error("❌ Aucun élément d'arbre valide")
-                            else:
-                                # Construction des disques
-                                disks = []
-                                for idx, row in st.session_state.df_disk.iterrows():
-                                    try:
-                                        n = int(row["nœud"])
-                                        m = float(row["Masse (kg)"])
-                                        
-                                        # Lecture robuste de Id
-                                        Id = 0.0
-                                        if "Id (kg.m²)" in row:
-                                            Id = float(row["Id (kg.m²)"])
-                                        elif "Id" in row:
-                                            Id = float(row["Id"])
-                                        
-                                        # Lecture robuste de Ip
-                                        Ip = 0.0
-                                        if "Ip (kg.m²)" in row:
-                                            Ip = float(row["Ip (kg.m²)"])
-                                        elif "Ip" in row:
-                                            Ip = float(row["Ip"])
-                                        
-                                        disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
-                                    except Exception as e:
-                                        st.warning(f"⚠️ Disque ligne {idx+1} ignoré : {e}")
-                                
-                                # Construction des paliers
-                                bearings = []
-                                for idx, r in enumerate(st.session_state.df_bear.to_dict('records')):
-                                    try:
-                                        n = int(r["nœud"])
-                                        e_type = str(r.get("Type", "Palier")).strip()
-                                        
-                                        if e_type == "Masse":
-                                            m_val = float(r.get("m (kg)", 0.0))
-                                            if m_val > 0:
-                                                disks.append(rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0))
-                                        else:
-                                            kxx = float(r.get("kxx", 0.0))
-                                            kyy = float(r.get("kyy", 0.0))
-                                            kxy = float(r.get("kxy", 0.0))
-                                            cxx = float(r.get("cxx", 0.0))
-                                            cyy = float(r.get("cyy", 0.0))
-                                            
-                                            bearings.append(rs.BearingElement(
-                                                n=n, kxx=kxx, kyy=kyy, kxy=kxy, kyx=-kxy,
-                                                cxx=cxx, cyy=cyy
-                                            ))
-                                    except Exception as e:
-                                        st.warning(f"⚠️ Palier ligne {idx+1} ignoré : {e}")
-                                
-                                if not bearings:
-                                    st.warning("⚠️ Aucun palier défini")
-                                
-                                # Assemblage final
-                                rotor = rs.Rotor(shaft, disks, bearings)
-                                
-                                # Stockage dans la session
-                                st.session_state["rotor"] = rotor
-                                
-                                with col_msg:
-                                    st.success(f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | Masse : {rotor.m:.2f} kg")
-                                    st.balloons()
-                                    
-                    except Exception as e:
-                        with col_msg:
-                            st.error(f"❌ Erreur d'assemblage : {e}")
+                # =========================================================
+                # BOUTON D'ASSEMBLAGE
+                # =========================================================
+                col_btn, col_msg = st.columns([3, 7])
+                
+                with col_btn:
+                    if st.button("🚀 Assembler le rotor", type="primary", use_container_width=True):
+                        if not ROSS_AVAILABLE:
+                            st.error("❌ ROSS non disponible")
+                        else:
+                            try:
+                                with st.spinner("Construction du modèle..."):
+                
+                                    # =========================
+                                    # MATÉRIAU
+                                    # =========================
+                                    mat_name = st.session_state.get("m1_mat", "Acier standard (AISI 1045)")
+                                    props = MATERIALS_DB.get(
+                                        mat_name, MATERIALS_DB["Acier standard (AISI 1045)"]
+                                    )
+                
+                                    mat = rs.Material(
+                                        name=mat_name.replace(" ", "_"),
+                                        rho=props["rho"],
+                                        E=props["E"],
+                                        G_s=props["G_s"]
+                                    )
+                
+                                    # =========================
+                                    # ARBRE
+                                    # =========================
+                                    shaft = []
+                                    for r in st.session_state.df_shaft.to_dict("records"):
+                                        L = float(r.get("L (m)", 0.2))
+                                        idl = float(r.get("id_L (m)", 0.0))
+                                        odl = float(r.get("od_L (m)", 0.05))
+                                        idr = float(r.get("id_R (m)", idl))
+                                        odr = float(r.get("od_R (m)", odl))
+                
+                                        if L <= 0 or idl >= odl or idr >= odr:
+                                            st.warning("⚠️ Élément d’arbre invalide ignoré")
+                                            continue
+                
+                                        shaft.append(
+                                            rs.ShaftElement(
+                                                L=L, idl=idl, odl=odl,
+                                                idr=idr, odr=odr,
+                                                material=mat
+                                            )
+                                        )
+                
+                                    if not shaft:
+                                        st.error("❌ Aucun élément d’arbre valide")
+                                        st.stop()
+                
+                                    # =========================
+                                    # DISQUES
+                                    # =========================
+                                    disks = []
+                                    for idx, row in st.session_state.df_disk.iterrows():
+                                        try:
+                                            m = float(row.get("Masse (kg)", 0.0))
+                                            if m <= 0:
+                                                st.warning(f"⚠️ Disque ligne {idx+1} : masse nulle → ignoré")
+                                                continue
+                
+                                            n = int(row.get("nœud", 0))
+                                            Id = float(row.get("Id (kg.m²)", row.get("Id", 0.0)))
+                                            Ip = float(row.get("Ip (kg.m²)", row.get("Ip", 0.0)))
+                
+                                            disks.append(
+                                                rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip)
+                                            )
+                
+                                        except Exception as e:
+                                            st.warning(
+                                                f"⚠️ Disque ligne {idx+1} ignoré : "
+                                                f"{type(e).__name__} — {e}"
+                                            )
+                
+                                    # =========================
+                                    # PALIERS
+                                    # =========================
+                                    bearings = []
+                                    for idx, r in enumerate(st.session_state.df_bear.to_dict("records")):
+                                        try:
+                                            n = int(r["nœud"])
+                                            e_type = str(r.get("Type", "Palier")).strip()
+                
+                                            if e_type == "Masse":
+                                                m_val = float(r.get("m (kg)", 0.0))
+                                                if m_val > 0:
+                                                    disks.append(
+                                                        rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0)
+                                                    )
+                                                continue
+                
+                                            bearings.append(
+                                                rs.BearingElement(
+                                                    n=n,
+                                                    kxx=float(r.get("kxx", 0.0)),
+                                                    kyy=float(r.get("kyy", 0.0)),
+                                                    kxy=float(r.get("kxy", 0.0)),
+                                                    kyx=-float(r.get("kxy", 0.0)),
+                                                    cxx=float(r.get("cxx", 0.0)),
+                                                    cyy=float(r.get("cyy", 0.0))
+                                                )
+                                            )
+                
+                                        except Exception as e:
+                                            st.warning(
+                                                f"⚠️ Palier ligne {idx+1} ignoré : "
+                                                f"{type(e).__name__} — {e}"
+                                            )
+
+                    # =========================
+                    # ASSEMBLAGE FINAL
+                    # =========================
+                    rotor = rs.Rotor(shaft, disks, bearings)
+                    st.session_state["rotor"] = rotor
+
+                with col_msg:
+                    st.success(
+                        f"✅ Rotor assemblé — {len(rotor.nodes)} nœuds | "
+                        f"Masse : {rotor.m:.2f} kg"
+                    )
+                    st.balloons()
+
+            except Exception as e:
+                with col_msg:
+                    st.error(
+                        f"❌ Erreur d’assemblage : {type(e).__name__} — {e}"
+                    )
         
         # =========================================================
         # AFFICHAGE DU ROTOR ASSEMBLÉ
@@ -862,87 +883,7 @@ elif current_page == "🔬 Mode Simulation":
                     use_container_width=True
                 )
                 
-                st.code(f"""
-    # Script ROSS généré par RotorLab Suite
-    import ross as rs
-    import numpy as np
-    
-    # Matériau
-    mat = rs.Material(name="{mat_name}", rho={props['rho']}, E={props['E']:.2e}, G_s={props['G_s']:.2e})
-    
-    # Arbre
-    shaft.append(
-    rs.ShaftElement(
-        L=float(r.get("L (m)", 0.2)),
-        idl=float(r.get("id_L (m)", 0.0)),
-        odl=float(r.get("od_L (m)", 0.05)),
-        idr=float(r.get("id_R (m)", r.get("id_L (m)", 0.0))),
-        odr=float(r.get("od_R (m)", r.get("od_L (m)", 0.05))),
-        material=mat
-        )
-    )
-    
-    # Disques
-                        # =========================================================
-                    # CONSTRUCTION DES DISQUES (CORRIGÉ)
-                    # =========================================================
-                    disks = []
-                    for i, row in st.session_state.df_disk.iterrows():
-                        try:
-                            n = int(row["nœud"])
-                            m = float(row["Masse (kg)"])
-                            
-                            # Lecture robuste de Id
-                            Id = 0.0
-                            if "Id (kg.m²)" in row:
-                                Id = float(row["Id (kg.m²)"])
-                            elif "Id" in row:
-                                Id = float(row["Id"])
-                            
-                            # Lecture robuste de Ip
-                            Ip = 0.0
-                            if "Ip (kg.m²)" in row:
-                                Ip = float(row["Ip (kg.m²)"])
-                            elif "Ip" in row:
-                                Ip = float(row["Ip"])
-                            
-                            disks.append(rs.DiskElement(n=n, m=m, Id=Id, Ip=Ip))
-                        except Exception as e:
-                            st.warning(f"⚠️ Disque ligne {i+1} ignoré : {e}")
-                    
-                    # =========================================================
-                    # CONSTRUCTION DES PALIERS (CORRIGÉ)
-                    # =========================================================
-                    bearings = []
-                    for j, r in enumerate(st.session_state.df_bear.to_dict('records')):
-                        try:
-                            n = int(r["nœud"])
-                            e_type = str(r.get("Type", "Palier")).strip()
-                            
-                            if e_type == "Masse":
-                                m_val = float(r.get("m (kg)", 0.0))
-                                if m_val > 0:
-                                    disks.append(rs.DiskElement(n=n, m=m_val, Id=0.0, Ip=0.0))
-                            else:
-                                kxx = float(r.get("kxx", 0.0))
-                                kyy = float(r.get("kyy", 0.0))
-                                kxy = float(r.get("kxy", 0.0))
-                                cxx = float(r.get("cxx", 0.0))
-                                cyy = float(r.get("cyy", 0.0))
-                                
-                                bearings.append(rs.BearingElement(
-                                    n=n, kxx=kxx, kyy=kyy, kxy=kxy, kyx=-kxy,
-                                    cxx=cxx, cyy=cyy
-                                ))
-                        except Exception as e:
-                            st.warning(f"⚠️ Palier ligne {j+1} ignoré : {e}")
-    
-    # Assemblage
-    rotor = rs.Rotor(shaft, disks, bearings)
-    print(f"Masse : {{rotor.m:.2f}} kg")
-    rotor.plot_rotor()
-    """, language="python")
-
+  
 # -----------------------------------------------------------------------------
 # PAGE : BIBLIOTHÈQUE
 # -----------------------------------------------------------------------------
